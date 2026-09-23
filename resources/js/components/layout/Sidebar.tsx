@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   LayoutDashboard,
+  Tags,
   Lightbulb,
   FolderKanban,
   FolderOpen,
@@ -30,6 +31,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const navItems = [
     { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
+    { label: 'Categories', path: '/categories', icon: Tags },
     { label: 'Ideas', path: '/ideas', icon: Lightbulb },
     { label: 'Projects', path: '/projects', icon: FolderKanban },
     { label: 'Assets', path: '/assets', icon: FolderOpen },

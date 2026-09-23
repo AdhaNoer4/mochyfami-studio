@@ -35,6 +35,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   const getPageTitle = (path: string): string => {
     const cleanPath = path.replace('/', '').toLowerCase();
     if (!cleanPath || cleanPath === 'dashboard') return 'Dashboard';
+    if (cleanPath.startsWith('categories')) return 'Content Categories';
     if (cleanPath === 'ideas') return 'Content Ideas';
     if (cleanPath === 'projects') return 'Projects';
     if (cleanPath === 'assets') return 'Media Assets';

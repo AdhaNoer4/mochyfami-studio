@@ -19,6 +19,18 @@ export interface ApiError {
   errors?: Record<string, string[]>;
 }
 
+export interface PaginationMeta {
+  total: number;
+  per_page: number;
+  current_page: number;
+  last_page: number;
+}
+
+export interface PaginatedData<T> {
+  items: T[];
+  pagination: PaginationMeta;
+}
+
 export type ContentFormat = 'educational' | 'pov' | 'storytelling' | 'funny_fact' | 'comparison' | 'list';
 
 export type ContentIdeaStatus = 'idea' | 'selected' | 'converted' | 'archived';
@@ -37,6 +49,19 @@ export type ContentProjectStatus =
   | 'published'
   | 'archived'
   | 'failed';
+
+export interface ContentCategory {
+  id: number;
+  name: string;
+  slug: string;
+  description?: string | null;
+  color?: string | null;
+  is_active: boolean;
+  ideas_count?: number;
+  projects_count?: number;
+  created_at?: string;
+  updated_at?: string;
+}
 
 export interface DashboardProject {
   id: number;

@@ -9,6 +9,8 @@ import { AssetsPage } from '../pages/AssetsPage';
 import { ProductionPage } from '../pages/ProductionPage';
 import { AnalyticsPage } from '../pages/AnalyticsPage';
 import { SettingsPage } from '../pages/SettingsPage';
+import { CategoryListPage } from '../pages/categories/CategoryListPage';
+import { CategoryFormPage } from '../pages/categories/CategoryFormPage';
 import { Loader2 } from 'lucide-react';
 
 export const AppRouter: React.FC = () => {
@@ -46,6 +48,17 @@ export const AppRouter: React.FC = () => {
 
   // Render appropriate page view inside AppLayout
   const renderPage = () => {
+    if (currentPath === '/categories/new') {
+      return <CategoryFormPage onNavigate={navigate} />;
+    }
+    if (currentPath.startsWith('/categories/edit/')) {
+      const parts = currentPath.split('/');
+      const id = parseInt(parts[parts.length - 1], 10);
+      return <CategoryFormPage categoryId={id} onNavigate={navigate} />;
+    }
+    if (currentPath.startsWith('/categories')) {
+      return <CategoryListPage onNavigate={navigate} />;
+    }
     if (currentPath.startsWith('/ideas')) return <IdeasPage />;
     if (currentPath.startsWith('/projects')) return <ProjectsPage />;
     if (currentPath.startsWith('/assets')) return <AssetsPage />;
