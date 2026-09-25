@@ -37,28 +37,68 @@ enum ContentProjectStatus: string
         };
     }
 
+    /**
+     * The single authoritative definition of which statuses are reachable
+     * from this status. Reuse this from the backend and surface it through
+     * the API so the frontend never needs to duplicate the transition map.
+     *
+     * @return array<int, self>
+     */
+    public function allowedTransitions(): array
+    {
+        return match ($this) {
+            self::Draft => [self::Researching, self::Archived, self::Failed],
+            self::Researching => [self::ResearchReview, self::Revision, self::Failed, self::Archived],
+            self::ResearchReview => [self::Scripting, self::Revision, self::Failed, self::Archived],
+            self::Scripting => [self::ScriptReview, self::Revision, self::Failed, self::Archived],
+            self::ScriptReview => [self::AssetCollection, self::Revision, self::Failed, self::Archived],
+            self::AssetCollection => [self::Production, self::Revision, self::Failed, self::Archived],
+            self::Production => [self::VideoReview, self::Revision, self::Failed, self::Archived],
+            self::VideoReview => [self::Approved, self::Revision, self::Failed, self::Archived],
+            self::Approved => [self::Published, self::Revision, self::Archived],
+            self::Published => [self::Archived],
+            self::Revision => [self::Researching, self::Scripting, self::Production, self::Failed, self::Archived],
+            self::Archived, self::Failed => [],
+        };
+    }
+
     public function canTransitionTo(self $target): bool
     {
         if ($this === $target) {
-            return true;
+            return false;
         }
 
-        if ($target === self::Failed || $target === self::Archived) {
-            return true;
+        return in_array($target, $this->allowedTransitions(), true);
+    }
+
+    /**
+     * Human-readable label for the action that performs a transition to $target.
+     */
+    public function actionLabelFor(self $target): string
+    {
+        if ($this === self::Revision) {
+            return match ($target) {
+                self::Researching => 'Return to Research',
+                self::Scripting => 'Return to Scripting',
+                self::Production => 'Return to Production',
+                default => $target->label(),
+            };
         }
 
-        return match ($this) {
-            self::Draft => in_array($target, [self::Researching, self::Scripting]),
-            self::Researching => in_array($target, [self::ResearchReview, self::Scripting]),
-            self::ResearchReview => in_array($target, [self::Scripting, self::Researching]),
-            self::Scripting => in_array($target, [self::ScriptReview, self::AssetCollection]),
-            self::ScriptReview => in_array($target, [self::AssetCollection, self::Scripting]),
-            self::AssetCollection => in_array($target, [self::Production, self::Scripting]),
-            self::Production => in_array($target, [self::VideoReview]),
-            self::VideoReview => in_array($target, [self::Approved, self::Revision]),
-            self::Revision => in_array($target, [self::Production, self::Scripting, self::AssetCollection]),
-            self::Approved => in_array($target, [self::Published]),
-            self::Published, self::Archived, self::Failed => false,
+        return match ($target) {
+            self::Researching => 'Start Research',
+            self::ResearchReview => 'Submit Research for Review',
+            self::Scripting => 'Start Scripting',
+            self::ScriptReview => 'Submit Script for Review',
+            self::AssetCollection => 'Start Asset Collection',
+            self::Production => 'Start Production',
+            self::VideoReview => 'Submit Video for Review',
+            self::Approved => 'Approve Video',
+            self::Published => 'Mark as Published',
+            self::Revision => 'Send to Revision',
+            self::Archived => 'Archive Project',
+            self::Failed => 'Mark Failed',
+            default => $target->label(),
         };
     }
 }

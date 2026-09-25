@@ -64,6 +64,7 @@ function handleApiError(error: unknown): ApiError {
     if (axiosError.response && axiosError.response.data) {
       return {
         success: false,
+        status: axiosError.response.status,
         data: null,
         message: axiosError.response.data.message || 'An error occurred.',
         errors: axiosError.response.data.errors,

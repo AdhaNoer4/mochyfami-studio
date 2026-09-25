@@ -16,6 +16,7 @@ export interface ApiError {
   success: false;
   data: null;
   message: string;
+  status?: number;
   errors?: Record<string, string[]>;
 }
 
@@ -63,23 +64,201 @@ export interface ContentCategory {
   updated_at?: string;
 }
 
-export interface DashboardProject {
+export interface ContentIdea {
+  id: number;
+  title: string;
+  slug: string;
+  category_id: number;
+  category?: {
+    id: number;
+    name: string;
+    color?: string;
+  };
+  hook?: string | null;
+  concept?: string | null;
+  format: ContentFormat;
+  format_label: string;
+  status: ContentIdeaStatus;
+  status_label: string;
+  project_id?: number | null;
+  priority: number;
+  priority_label: string;
+  notes?: string | null;
+  source_idea?: string | null;
+  creator_name?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface ProjectTransition {
+  status: ContentProjectStatus;
+  label: string;
+  action: string;
+  destructive: boolean;
+}
+
+export interface ContentProject {
   id: number;
   title: string;
   slug: string;
   status: ContentProjectStatus;
   status_label: string;
-  category_name?: string | null;
-  category_color?: string | null;
+  allowed_transitions?: ProjectTransition[];
+  content_idea_id?: number | null;
+  idea?: {
+    id: number;
+    title: string;
+    format?: ContentFormat;
+    format_label?: string;
+  } | null;
+  category_id?: number | null;
+  category?: {
+    id: number;
+    name: string;
+    color?: string;
+  } | null;
+  target_duration_seconds?: number;
+  language?: string;
+  tone?: string;
+  priority?: number;
+  hook?: string | null;
+  description?: string | null;
+  current_step?: string;
   progress_percent?: number;
+  creator_name?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export type IdeaSortField = 'created_at' | 'updated_at' | 'title' | 'priority';
+export type IdeaSortDirection = 'asc' | 'desc';
+
+export interface IdeaFilterParams {
+  page?: number;
+  search?: string;
+  category_id?: number | string;
+  format?: string;
+  status?: string;
+  priority?: number | string;
+  sort?: IdeaSortField;
+  direction?: IdeaSortDirection;
+  per_page?: number;
+}
+
+export type ProjectSortField = 'created_at' | 'updated_at' | 'title' | 'status' | 'progress_percent';
+
+export interface ProjectFilterParams {
+  page?: number;
+  search?: string;
+  status?: string;
+  content_idea_id?: number | string;
+  category_id?: number | string;
+  sort?: ProjectSortField;
+  direction?: IdeaSortDirection;
+  per_page?: number;
+}
+
+export interface ImportPreviewRowData {
+  title: string;
+  slug: string;
+  category_id: number | null;
+  category_name: string;
+  hook: string;
+  concept: string;
+  format: string;
+  status: string;
+  priority: number;
+  notes?: string;
+  source_idea?: string;
+}
+
+export interface ImportPreviewRow {
+  row_number: number;
+  data: ImportPreviewRowData;
+  status: 'valid' | 'invalid' | 'duplicate';
+  errors: string[];
+  warnings: string[];
+}
+
+export interface ImportPreviewData {
+  total_rows: number;
+  valid_rows_count: number;
+  invalid_rows_count: number;
+  duplicate_rows_count: number;
+  rows: ImportPreviewRow[];
+}
+
+export interface ImportResultData {
+  total_rows: number;
+  imported_rows: number;
+  skipped_rows: number;
+  duplicate_rows: number;
+  failed_rows: number;
+}
+
+export interface DashboardOverview {
+  total_ideas: number;
+  total_projects: number;
+  active_projects: number;
+  published_projects: number;
+}
+
+export interface DashboardIdeaStats {
+  total: number;
+  idea: number;
+  selected: number;
+  converted: number;
+  archived: number;
+}
+
+export interface DashboardProjectStats {
+  total: number;
+  by_status: Record<ContentProjectStatus, number>;
+}
+
+export interface DashboardRecentIdea {
+  id: number;
+  title: string;
+  status: ContentIdeaStatus;
+  status_label: string;
+  format: ContentFormat;
+  format_label?: string;
+  category: string | null;
+  category_color?: string;
+  created_at: string;
+}
+
+export interface DashboardProjectItem {
+  id: number;
+  title: string;
+  slug: string;
+  status: ContentProjectStatus;
+  status_label: string;
+  priority: number;
+  idea?: { id: number; title: string } | null;
   updated_at: string;
 }
 
 export interface DashboardData {
-  ideas_count: number;
-  active_projects_count: number;
-  review_count: number;
-  published_count: number;
-  recent_projects: DashboardProject[];
-  production_queue: DashboardProject[];
+  overview: DashboardOverview;
+  ideas: DashboardIdeaStats;
+  projects: DashboardProjectStats;
+  recent_ideas: DashboardRecentIdea[];
+  recent_projects: DashboardProjectItem[];
+  production_queue: DashboardProjectItem[];
+}
+
+export interface ConvertIdeaPayload {
+  title?: string;
+  priority?: number;
+  notes?: string;
+}
+
+export interface ConvertIdeaResponse {
+  project: ContentProject;
+  idea: ContentIdea;
+}
+
+export interface UpdateProjectStatusPayload {
+  status: ContentProjectStatus;
 }

@@ -100,6 +100,50 @@ class CategoryApiTest extends TestCase
         ]);
     }
 
+    public function test_cannot_create_category_with_duplicate_slug(): void
+    {
+        ContentCategory::create([
+            'name' => 'Existing Category',
+            'slug' => 'existing-category',
+            'color' => '#6366f1',
+            'is_active' => true,
+        ]);
+
+        $response = $this->actingAs($this->user, 'sanctum')
+            ->postJson('/api/v1/categories', [
+                'name' => 'Another Category',
+                'slug' => 'existing-category',
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors('slug');
+    }
+
+    public function test_cannot_update_category_with_duplicate_slug(): void
+    {
+        ContentCategory::create([
+            'name' => 'First Category',
+            'slug' => 'first-category',
+            'color' => '#6366f1',
+            'is_active' => true,
+        ]);
+
+        $second = ContentCategory::create([
+            'name' => 'Second Category',
+            'slug' => 'second-category',
+            'color' => '#10b981',
+            'is_active' => true,
+        ]);
+
+        $response = $this->actingAs($this->user, 'sanctum')
+            ->putJson("/api/v1/categories/{$second->id}", [
+                'slug' => 'first-category',
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors('slug');
+    }
+
     public function test_can_update_category(): void
     {
         $category = ContentCategory::create([

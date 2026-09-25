@@ -17,6 +17,7 @@ class ContentProject extends Model
         'title',
         'slug',
         'status',
+        'priority',
         'target_duration_seconds',
         'language',
         'tone',

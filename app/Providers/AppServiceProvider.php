@@ -2,6 +2,11 @@
 
 namespace App\Providers;
 
+use App\Models\ContentIdea;
+use App\Models\ContentProject;
+use App\Policies\IdeaPolicy;
+use App\Policies\ProjectPolicy;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -19,6 +24,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        Gate::policy(ContentIdea::class, IdeaPolicy::class);
+        Gate::policy(ContentProject::class, ProjectPolicy::class);
     }
 }

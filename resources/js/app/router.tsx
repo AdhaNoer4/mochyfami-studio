@@ -3,14 +3,18 @@ import { useAuth } from './providers';
 import { AppLayout } from '../layouts/AppLayout';
 import { LoginPage } from '../pages/LoginPage';
 import { DashboardPage } from '../pages/DashboardPage';
-import { IdeasPage } from '../pages/IdeasPage';
-import { ProjectsPage } from '../pages/ProjectsPage';
+import { IdeasListPage } from '../pages/ideas/IdeasListPage';
+import { IdeaFormPage } from '../pages/ideas/IdeaFormPage';
+import { IdeaImportPage } from '../pages/ideas/IdeaImportPage';
 import { AssetsPage } from '../pages/AssetsPage';
 import { ProductionPage } from '../pages/ProductionPage';
 import { AnalyticsPage } from '../pages/AnalyticsPage';
 import { SettingsPage } from '../pages/SettingsPage';
 import { CategoryListPage } from '../pages/categories/CategoryListPage';
 import { CategoryFormPage } from '../pages/categories/CategoryFormPage';
+import { ProjectsListPage } from '../pages/projects/ProjectsListPage';
+import { ProjectFormPage } from '../pages/projects/ProjectFormPage';
+import { ProjectDetailPage } from '../pages/projects/ProjectDetailPage';
 import { Loader2 } from 'lucide-react';
 
 export const AppRouter: React.FC = () => {
@@ -59,8 +63,38 @@ export const AppRouter: React.FC = () => {
     if (currentPath.startsWith('/categories')) {
       return <CategoryListPage onNavigate={navigate} />;
     }
-    if (currentPath.startsWith('/ideas')) return <IdeasPage />;
-    if (currentPath.startsWith('/projects')) return <ProjectsPage />;
+    if (currentPath === '/ideas/import') {
+      return <IdeaImportPage onNavigate={navigate} />;
+    }
+    if (currentPath === '/ideas/new') {
+      return <IdeaFormPage onNavigate={navigate} />;
+    }
+    if (currentPath.startsWith('/ideas/edit/')) {
+      const parts = currentPath.split('/');
+      const id = parseInt(parts[parts.length - 1], 10);
+      return <IdeaFormPage ideaId={id} onNavigate={navigate} />;
+    }
+    if (currentPath.startsWith('/ideas')) {
+      return <IdeasListPage onNavigate={navigate} />;
+    }
+    if (currentPath === '/projects/new') {
+      return <ProjectFormPage onNavigate={navigate} />;
+    }
+    if (currentPath.startsWith('/projects/') && currentPath.endsWith('/edit')) {
+      const parts = currentPath.split('/');
+      const id = parseInt(parts[parts.length - 2], 10);
+      return <ProjectFormPage projectId={id} onNavigate={navigate} />;
+    }
+    if (currentPath.startsWith('/projects/')) {
+      const parts = currentPath.split('/');
+      const id = parseInt(parts[parts.length - 1], 10);
+      if (!isNaN(id)) {
+        return <ProjectDetailPage projectId={id} onNavigate={navigate} />;
+      }
+    }
+    if (currentPath.startsWith('/projects')) {
+      return <ProjectsListPage onNavigate={navigate} />;
+    }
     if (currentPath.startsWith('/assets')) return <AssetsPage />;
     if (currentPath.startsWith('/production')) return <ProductionPage />;
     if (currentPath.startsWith('/analytics')) return <AnalyticsPage />;
