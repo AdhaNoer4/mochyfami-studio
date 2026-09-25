@@ -20,6 +20,7 @@ class ResearchSourceResource extends JsonResource
             'domain' => $this->domain,
             'source_type' => $this->source_type->value,
             'source_type_label' => $this->source_type->label(),
+            'claims' => ResearchClaimResource::collection($this->whenLoaded('claims')),
             'published_at' => $this->published_at?->toIso8601String(),
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),

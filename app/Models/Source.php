@@ -6,6 +6,7 @@ use App\Enums\SourceType;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use InvalidArgumentException;
 
 class Source extends Model
@@ -32,6 +33,11 @@ class Source extends Model
     public function report(): BelongsTo
     {
         return $this->belongsTo(ResearchReport::class, 'research_report_id');
+    }
+
+    public function claims(): BelongsToMany
+    {
+        return $this->belongsToMany(ResearchClaim::class, 'research_claim_sources')->withTimestamps();
     }
 
     protected static function booted(): void

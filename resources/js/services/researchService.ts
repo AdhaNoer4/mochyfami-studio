@@ -100,6 +100,24 @@ export const researchService = {
   async deleteClaim(projectId: number, claimId: number): Promise<void> {
     await apiClient.delete(`/projects/${projectId}/research/claims/${claimId}`);
   },
+
+  async getClaimSources(projectId: number, claimId: number): Promise<ResearchSource[]> {
+    const response = await apiClient.get<ApiResponse<{ items: ResearchSource[] }>>(
+      `/projects/${projectId}/research/claims/${claimId}/sources`,
+    );
+    return response.data.data.items;
+  },
+
+  async attachSource(projectId: number, claimId: number, sourceId: number): Promise<ResearchClaim> {
+    const response = await apiClient.post<ApiResponse<ResearchClaim>>(
+      `/projects/${projectId}/research/claims/${claimId}/sources/${sourceId}`,
+    );
+    return response.data.data;
+  },
+
+  async detachSource(projectId: number, claimId: number, sourceId: number): Promise<void> {
+    await apiClient.delete(`/projects/${projectId}/research/claims/${claimId}/sources/${sourceId}`);
+  },
 };
 
 export function getApiErrorMessage(error: unknown, fallback: string): string {

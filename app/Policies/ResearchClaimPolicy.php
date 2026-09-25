@@ -46,4 +46,20 @@ class ResearchClaimPolicy
     {
         return true;
     }
+
+    /**
+     * Determine whether the user can attach a source as evidence to the claim.
+     */
+    public function attachSource(User $user, ResearchClaim $claim): bool
+    {
+        return true;
+    }
+
+    /**
+     * Determine whether the user can detach a source from the claim.
+     */
+    public function detachSource(User $user, ResearchClaim $claim): bool
+    {
+        return true;
+    }
 }

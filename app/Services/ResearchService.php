@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\ResearchClaimImportance;
 use App\Enums\ResearchClaimStatus;
 use App\Enums\ResearchStatus;
+use App\Exceptions\DuplicateEvidenceRelationException;
 use App\Exceptions\DuplicateResearchReportException;
 use App\Exceptions\InvalidResearchStatusTransitionException;
 use App\Models\ContentProject;
@@ -35,7 +36,7 @@ class ResearchService
     public function getReport(ContentProject $project): ?ResearchReport
     {
         return $project->researchReport()
-            ->with(['project', 'claims', 'sources'])
+            ->with(['project', 'claims.sources', 'sources'])
             ->first();
     }
 
@@ -189,6 +190,57 @@ class ResearchService
     {
         $this->assertClaimBelongsToReport($project, $claim);
         $claim->delete();
+    }
+
+    /**
+     * Attach a source as evidence to a claim within the same research report.
+     *
+     * @throws DuplicateEvidenceRelationException
+     * @throws ModelNotFoundException
+     */
+    public function attachSourceToClaim(
+        ContentProject $project,
+        ResearchClaim $claim,
+        Source $source
+    ): ResearchClaim {
+        $this->assertClaimBelongsToReport($project, $claim);
+        $this->assertSourceBelongsToReport($project, $source);
+
+        if ($claim->sources()->whereKey($source->getKey())->exists()) {
+            throw new DuplicateEvidenceRelationException('This source is already attached to the claim.');
+        }
+
+        $claim->sources()->attach($source->getKey());
+
+        return $claim->load('sources');
+    }
+
+    /**
+     * Detach a source from a claim, removing only the pivot record.
+     *
+     * @throws ModelNotFoundException
+     */
+    public function detachSourceFromClaim(
+        ContentProject $project,
+        ResearchClaim $claim,
+        Source $source
+    ): void {
+        $this->assertClaimBelongsToReport($project, $claim);
+        $this->assertSourceBelongsToReport($project, $source);
+
+        $claim->sources()->detach($source->getKey());
+    }
+
+    /**
+     * List the sources attached as evidence to a claim.
+     *
+     * @throws ModelNotFoundException
+     */
+    public function getClaimSources(ContentProject $project, ResearchClaim $claim)
+    {
+        $this->assertClaimBelongsToReport($project, $claim);
+
+        return $claim->sources()->latest('research_claim_sources.id')->get();
     }
 
     /**

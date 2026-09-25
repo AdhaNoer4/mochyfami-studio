@@ -108,6 +108,10 @@ export const ResearchPanel: React.FC<ResearchPanelProps> = ({ projectId }) => {
   const [deleteClaimId, setDeleteClaimId] = useState<number | null>(null);
   const [deletingClaim, setDeletingClaim] = useState<boolean>(false);
 
+  const [evidenceClaimId, setEvidenceClaimId] = useState<number | null>(null);
+  const [attachingSourceId, setAttachingSourceId] = useState<number | null>(null);
+  const [detachingSourceId, setDetachingSourceId] = useState<number | null>(null);
+
   const refreshReport = useCallback(async () => {
     const data = await researchService.getResearch(projectId);
     setReport(data);
@@ -319,6 +323,38 @@ export const ResearchPanel: React.FC<ResearchPanelProps> = ({ projectId }) => {
       setPanelError(getApiErrorMessage(err, 'Unable to delete claim.'));
     } finally {
       setDeletingClaim(false);
+    }
+  };
+
+  const handleAttachSource = async (claimId: number, sourceId: number) => {
+    if (attachingSourceId) return;
+    setAttachingSourceId(sourceId);
+    setMessage(null);
+    setPanelError(null);
+    try {
+      await researchService.attachSource(projectId, claimId, sourceId);
+      await refreshReport();
+      setMessage('Source attached to claim as evidence.');
+    } catch (err) {
+      setPanelError(getApiErrorMessage(err, 'Unable to attach source.'));
+    } finally {
+      setAttachingSourceId(null);
+    }
+  };
+
+  const handleDetachSource = async (claimId: number, sourceId: number) => {
+    if (detachingSourceId) return;
+    setDetachingSourceId(sourceId);
+    setMessage(null);
+    setPanelError(null);
+    try {
+      await researchService.detachSource(projectId, claimId, sourceId);
+      await refreshReport();
+      setMessage('Source detached from claim.');
+    } catch (err) {
+      setPanelError(getApiErrorMessage(err, 'Unable to detach source.'));
+    } finally {
+      setDetachingSourceId(null);
     }
   };
 
@@ -744,28 +780,106 @@ export const ResearchPanel: React.FC<ResearchPanelProps> = ({ projectId }) => {
               No claims yet. Add the first fact or assertion to verify.
             </p>
           ) : (
-            report.claims.map((claim) => (
-              <div
-                key={claim.id}
-                className="p-3 rounded-lg bg-slate-950 border border-slate-800 flex items-start justify-between gap-3"
-              >
-                <div className="min-w-0 space-y-1.5">
-                  <p className="text-xs text-slate-200 leading-relaxed">{claim.claim}</p>
-                  <div className="flex items-center gap-2">
-                    <Badge size="sm" variant={getStatusBadgeVariant(claim.status)}>
-                      {claim.status_label}
-                    </Badge>
-                    <Badge size="sm" variant="violet">
-                      {claim.importance_label}
-                    </Badge>
+            report.claims.map((claim) => {
+              const attachedSourceIds = claim.sources?.map((s) => s.id) ?? [];
+              const availableSources = report.sources.filter((s) => !attachedSourceIds.includes(s.id));
+              const showAddSourceFor = evidenceClaimId === claim.id;
+
+              return (
+                <div
+                  key={claim.id}
+                  className="p-3 rounded-lg bg-slate-950 border border-slate-800 flex items-start justify-between gap-3"
+                >
+                  <div className="min-w-0 space-y-2">
+                    <p className="text-xs text-slate-200 leading-relaxed">{claim.claim}</p>
+                    <div className="flex items-center gap-2">
+                      <Badge size="sm" variant={getStatusBadgeVariant(claim.status)}>
+                        {claim.status_label}
+                      </Badge>
+                      <Badge size="sm" variant="violet">
+                        {claim.importance_label}
+                      </Badge>
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-800/60">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                          Evidence
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="!px-2 !py-0.5 !text-[10px]"
+                          icon={<Plus className="w-3 h-3" />}
+                          onClick={() => setEvidenceClaimId(showAddSourceFor ? null : claim.id)}
+                        >
+                          Add Source
+                        </Button>
+                      </div>
+
+                      {(claim.sources?.length ?? 0) === 0 && !showAddSourceFor ? (
+                        <p className="text-[10px] text-slate-500">No evidence yet.</p>
+                      ) : null}
+
+                      {(claim.sources?.length ?? 0) > 0 && (
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {(claim.sources ?? []).map((source) => (
+                            <span
+                              key={source.id}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-900 border border-slate-700 text-[10px] text-slate-300"
+                            >
+                              <Link2 className="w-3 h-3 text-indigo-400 shrink-0" />
+                              <span className="truncate max-w-[180px]">{source.title}</span>
+                              <button
+                                className="text-rose-400 hover:text-rose-300 disabled:opacity-50 shrink-0"
+                                disabled={detachingSourceId !== null}
+                                onClick={() => handleDetachSource(claim.id, source.id)}
+                                aria-label={`Detach ${source.title}`}
+                              >
+                                {detachingSourceId === source.id ? (
+                                  <X className="w-3 h-3 animate-pulse" />
+                                ) : (
+                                  <X className="w-3 h-3" />
+                                )}
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      {showAddSourceFor && (
+                        <div className="mt-1.5 space-y-1.5">
+                          {availableSources.length === 0 ? (
+                            <p className="text-[10px] text-slate-500">
+                              All sources in this report are already attached.
+                            </p>
+                          ) : (
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              {availableSources.map((source) => (
+                                <button
+                                  key={source.id}
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-950/40 border border-indigo-700/50 text-[10px] text-indigo-300 hover:bg-indigo-900/50 hover:text-white transition-colors disabled:opacity-50"
+                                  disabled={attachingSourceId !== null}
+                                  onClick={() => handleAttachSource(claim.id, source.id)}
+                                >
+                                  {attachingSourceId === source.id
+                                    ? 'Attaching...'
+                                    : `+ ${source.title}`}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Button variant="ghost" size="sm" icon={<Pencil className="w-3.5 h-3.5" />} onClick={() => openEditClaim(claim)} />
+                    <Button variant="ghost" size="sm" icon={<Trash2 className="w-3.5 h-3.5 text-rose-400" />} onClick={() => setDeleteClaimId(claim.id)} />
                   </div>
                 </div>
-                <div className="flex items-center gap-1 shrink-0">
-                  <Button variant="ghost" size="sm" icon={<Pencil className="w-3.5 h-3.5" />} onClick={() => openEditClaim(claim)} />
-                  <Button variant="ghost" size="sm" icon={<Trash2 className="w-3.5 h-3.5 text-rose-400" />} onClick={() => setDeleteClaimId(claim.id)} />
-                </div>
-              </div>
-            ))
+              );
+            })
           )}
         </CardContent>
       </Card>

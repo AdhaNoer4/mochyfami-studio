@@ -7,6 +7,7 @@ use App\Enums\ResearchClaimStatus;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class ResearchClaim extends Model
 {
@@ -30,5 +31,10 @@ class ResearchClaim extends Model
     public function report(): BelongsTo
     {
         return $this->belongsTo(ResearchReport::class, 'research_report_id');
+    }
+
+    public function sources(): BelongsToMany
+    {
+        return $this->belongsToMany(Source::class, 'research_claim_sources')->withTimestamps();
     }
 }

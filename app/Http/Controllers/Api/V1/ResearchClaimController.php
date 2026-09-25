@@ -2,12 +2,15 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Exceptions\DuplicateEvidenceRelationException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Research\StoreClaimRequest;
 use App\Http\Requests\Research\UpdateClaimRequest;
 use App\Http\Resources\ResearchClaimResource;
+use App\Http\Resources\ResearchSourceResource;
 use App\Models\ContentProject;
 use App\Models\ResearchClaim;
+use App\Models\Source;
 use App\Services\ResearchService;
 use App\Traits\ApiResponse;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -88,5 +91,59 @@ class ResearchClaimController extends Controller
         }
 
         return $this->successResponse(null, 'Claim deleted successfully.');
+    }
+
+    /**
+     * List sources attached as evidence to a claim.
+     */
+    public function sources(ContentProject $project, ResearchClaim $claim): JsonResponse
+    {
+        Gate::authorize('view', $claim);
+
+        try {
+            $sources = $this->researchService->getClaimSources($project, $claim);
+        } catch (ModelNotFoundException $e) {
+            return $this->errorResponse($e->getMessage(), null, 404);
+        }
+
+        return $this->successResponse(['items' => ResearchSourceResource::collection($sources)]);
+    }
+
+    /**
+     * Attach a source as evidence to a claim within the same research report.
+     */
+    public function attachSource(ContentProject $project, ResearchClaim $claim, Source $source): JsonResponse
+    {
+        Gate::authorize('attachSource', $claim);
+
+        try {
+            $claim = $this->researchService->attachSourceToClaim($project, $claim, $source);
+        } catch (DuplicateEvidenceRelationException $e) {
+            return $this->errorResponse($e->getMessage(), null, 409);
+        } catch (ModelNotFoundException $e) {
+            return $this->errorResponse($e->getMessage(), null, 404);
+        }
+
+        return $this->successResponse(
+            new ResearchClaimResource($claim),
+            'Source attached to claim successfully.',
+            201
+        );
+    }
+
+    /**
+     * Detach a source from a claim, removing only the evidence relationship.
+     */
+    public function detachSource(ContentProject $project, ResearchClaim $claim, Source $source): JsonResponse
+    {
+        Gate::authorize('detachSource', $claim);
+
+        try {
+            $this->researchService->detachSourceFromClaim($project, $claim, $source);
+        } catch (ModelNotFoundException $e) {
+            return $this->errorResponse($e->getMessage(), null, 404);
+        }
+
+        return $this->successResponse(null, 'Source detached from claim successfully.');
     }
 }

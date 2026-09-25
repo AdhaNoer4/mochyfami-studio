@@ -49,6 +49,9 @@ Route::prefix('v1')->group(function () {
             Route::post('claims', [ResearchClaimController::class, 'store']);
             Route::patch('claims/{claim}', [ResearchClaimController::class, 'update']);
             Route::delete('claims/{claim}', [ResearchClaimController::class, 'destroy']);
+            Route::get('claims/{claim}/sources', [ResearchClaimController::class, 'sources']);
+            Route::post('claims/{claim}/sources/{source}', [ResearchClaimController::class, 'attachSource']);
+            Route::delete('claims/{claim}/sources/{source}', [ResearchClaimController::class, 'detachSource']);
         });
     });
 });

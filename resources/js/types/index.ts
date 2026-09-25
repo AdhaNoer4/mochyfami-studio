@@ -286,6 +286,7 @@ export interface ResearchClaim {
   status_label: string;
   importance: ResearchClaimImportance;
   importance_label: string;
+  sources?: ResearchSource[];
   created_at?: string;
   updated_at?: string;
 }
@@ -298,6 +299,7 @@ export interface ResearchSource {
   domain?: string | null;
   source_type: SourceType;
   source_type_label: string;
+  claims?: ResearchClaim[];
   published_at?: string | null;
   created_at?: string;
   updated_at?: string;
