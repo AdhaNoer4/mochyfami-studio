@@ -4,6 +4,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../..
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { projectService } from '../../services/projectService';
+import { ResearchPanel } from '../../components/projects/ResearchPanel';
 import { ContentProject, ContentProjectStatus, ProjectTransition } from '../../types';
 import {
   ArrowLeft,
@@ -46,6 +47,8 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({ projectId,
   const [transitionError, setTransitionError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [confirmTransition, setConfirmTransition] = useState<ProjectTransition | null>(null);
+
+  const [activeTab, setActiveTab] = useState<'overview' | 'research'>('overview');
 
   useEffect(() => {
     setLoading(true);
@@ -245,6 +248,34 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({ projectId,
         }
       />
 
+      {/* Tab Navigation */}
+      <div className="flex items-center gap-1 border-b border-slate-800/80">
+        <button
+          className={`px-4 py-2 text-xs font-semibold rounded-t-lg border-b-2 transition-colors ${
+            activeTab === 'overview'
+              ? 'border-indigo-500 text-white bg-slate-800/40'
+              : 'border-transparent text-slate-400 hover:text-slate-200'
+          }`}
+          onClick={() => setActiveTab('overview')}
+        >
+          Overview
+        </button>
+        <button
+          className={`px-4 py-2 text-xs font-semibold rounded-t-lg border-b-2 transition-colors ${
+            activeTab === 'research'
+              ? 'border-indigo-500 text-white bg-slate-800/40'
+              : 'border-transparent text-slate-400 hover:text-slate-200'
+          }`}
+          onClick={() => setActiveTab('research')}
+        >
+          Research
+        </button>
+      </div>
+
+      {activeTab === 'research' ? (
+        <ResearchPanel projectId={project.id} />
+      ) : (
+        <>
       {/* Overview Metadata Card */}
       <Card variant="default">
         <CardContent className="pt-6 space-y-6">
@@ -493,6 +524,8 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({ projectId,
           </div>
         </CardContent>
       </Card>
+      </>
+      )}
 
       {/* Delete Confirmation Modal */}
       {deleteModalOpen && (

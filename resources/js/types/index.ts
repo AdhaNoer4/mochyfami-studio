@@ -262,3 +262,77 @@ export interface ConvertIdeaResponse {
 export interface UpdateProjectStatusPayload {
   status: ContentProjectStatus;
 }
+
+export type ResearchStatus = 'pending' | 'researching' | 'completed' | 'needs_review' | 'failed';
+
+export type ResearchClaimStatus = 'unverified' | 'supported' | 'contradicted' | 'uncertain';
+
+export type ResearchClaimImportance = 'low' | 'medium' | 'high';
+
+export type SourceType = 'article' | 'academic' | 'official' | 'news' | 'documentation' | 'other';
+
+export interface ResearchTransition {
+  status: ResearchStatus;
+  label: string;
+  action: string;
+  destructive: boolean;
+}
+
+export interface ResearchClaim {
+  id: number;
+  research_report_id: number;
+  claim: string;
+  status: ResearchClaimStatus;
+  status_label: string;
+  importance: ResearchClaimImportance;
+  importance_label: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface ResearchSource {
+  id: number;
+  research_report_id: number;
+  title: string;
+  url: string;
+  domain?: string | null;
+  source_type: SourceType;
+  source_type_label: string;
+  published_at?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface ResearchReport {
+  id: number;
+  project_id: number;
+  project?: { id: number; title: string } | null;
+  status: ResearchStatus;
+  status_label: string;
+  allowed_transitions: ResearchTransition[];
+  summary?: string | null;
+  researched_at?: string | null;
+  claims: ResearchClaim[];
+  sources: ResearchSource[];
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface UpdateResearchPayload {
+  summary?: string | null;
+  researched_at?: string | null;
+}
+
+export interface SourceFormData {
+  title: string;
+  url: string;
+  domain?: string | null;
+  source_type: SourceType;
+  published_at?: string | null;
+}
+
+export interface ClaimFormData {
+  claim: string;
+  status?: ResearchClaimStatus;
+  importance?: ResearchClaimImportance;
+}
