@@ -4,6 +4,7 @@ import {
   ApiResponse,
   ClaimFormData,
   ResearchClaim,
+  ResearchQuality,
   ResearchReport,
   ResearchSource,
   ResearchStatus,
@@ -117,6 +118,13 @@ export const researchService = {
 
   async detachSource(projectId: number, claimId: number, sourceId: number): Promise<void> {
     await apiClient.delete(`/projects/${projectId}/research/claims/${claimId}/sources/${sourceId}`);
+  },
+
+  async getQuality(projectId: number): Promise<ResearchQuality> {
+    const response = await apiClient.get<ApiResponse<ResearchQuality>>(
+      `/projects/${projectId}/research/quality`,
+    );
+    return response.data.data;
   },
 };
 

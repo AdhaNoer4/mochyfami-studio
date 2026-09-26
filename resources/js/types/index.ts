@@ -338,3 +338,31 @@ export interface ClaimFormData {
   status?: ResearchClaimStatus;
   importance?: ResearchClaimImportance;
 }
+
+export type ResearchQualitySeverity = 'blocker' | 'warning';
+
+export interface ResearchQualityIssue {
+  code: string;
+  severity: ResearchQualitySeverity;
+  claim_id?: number | null;
+  message: string;
+}
+
+export interface ResearchQualitySummary {
+  total_claims: number;
+  supported_claims: number;
+  unverified_claims: number;
+  uncertain_claims: number;
+  contradicted_claims: number;
+  claims_with_evidence: number;
+  claims_without_evidence: number;
+  important_claims: number;
+  important_claims_ready: number;
+}
+
+export interface ResearchQuality {
+  ready: boolean;
+  score: number;
+  summary: ResearchQualitySummary;
+  issues: ResearchQualityIssue[];
+}

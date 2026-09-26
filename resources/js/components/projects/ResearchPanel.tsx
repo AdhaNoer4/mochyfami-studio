@@ -8,6 +8,7 @@ import {
   ResearchClaim,
   ResearchClaimImportance,
   ResearchClaimStatus,
+  ResearchQuality,
   ResearchReport,
   ResearchSource,
   ResearchStatus,
@@ -25,6 +26,8 @@ import {
   Pencil,
   Plus,
   Save,
+  ShieldAlert,
+  ShieldCheck,
   Trash2,
   X,
 } from 'lucide-react';
@@ -112,10 +115,31 @@ export const ResearchPanel: React.FC<ResearchPanelProps> = ({ projectId }) => {
   const [attachingSourceId, setAttachingSourceId] = useState<number | null>(null);
   const [detachingSourceId, setDetachingSourceId] = useState<number | null>(null);
 
+  const [quality, setQuality] = useState<ResearchQuality | null>(null);
+  const [qualityLoading, setQualityLoading] = useState<boolean>(true);
+  const [qualityError, setQualityError] = useState<string | null>(null);
+
+  const refreshQuality = useCallback(async () => {
+    try {
+      const result = await researchService.getQuality(projectId);
+      setQuality(result);
+      setQualityError(null);
+    } catch (err) {
+      setQuality(null);
+      setQualityError(getApiErrorMessage(err, 'Unable to load research quality.'));
+    }
+  }, [projectId]);
+
   const refreshReport = useCallback(async () => {
     const data = await researchService.getResearch(projectId);
     setReport(data);
-  }, [projectId]);
+    if (data) {
+      await refreshQuality();
+    } else {
+      setQuality(null);
+      setQualityError(null);
+    }
+  }, [projectId, refreshQuality]);
 
   useEffect(() => {
     let active = true;
@@ -123,14 +147,32 @@ export const ResearchPanel: React.FC<ResearchPanelProps> = ({ projectId }) => {
     setPanelError(null);
     researchService
       .getResearch(projectId)
-      .then((data) => {
-        if (active) setReport(data);
+      .then(async (data) => {
+        if (!active) return;
+        setReport(data);
+        if (data) {
+          try {
+            const result = await researchService.getQuality(projectId);
+            if (active) {
+              setQuality(result);
+              setQualityError(null);
+            }
+          } catch (err) {
+            if (active) {
+              setQuality(null);
+              setQualityError(getApiErrorMessage(err, 'Unable to load research quality.'));
+            }
+          }
+        }
       })
       .catch((err) => {
         if (active) setPanelError(getApiErrorMessage(err, 'Unable to load research.'));
       })
       .finally(() => {
-        if (active) setLoading(false);
+        if (active) {
+          setLoading(false);
+          setQualityLoading(false);
+        }
       });
 
     return () => {
@@ -144,6 +186,7 @@ export const ResearchPanel: React.FC<ResearchPanelProps> = ({ projectId }) => {
     try {
       const created = await researchService.createResearch(projectId);
       setReport(created);
+      await refreshQuality();
       setMessage('Research report created successfully.');
     } catch (err) {
       setPanelError(getApiErrorMessage(err, 'Unable to create research report.'));
@@ -158,6 +201,8 @@ export const ResearchPanel: React.FC<ResearchPanelProps> = ({ projectId }) => {
     try {
       await researchService.deleteResearch(projectId);
       setReport(null);
+      setQuality(null);
+      setQualityError(null);
       setConfirmDeleteResearch(false);
       setMessage('Research report deleted successfully.');
     } catch (err) {
@@ -535,6 +580,128 @@ export const ResearchPanel: React.FC<ResearchPanelProps> = ({ projectId }) => {
               </div>
             )}
           </div>
+        </CardContent>
+      </Card>
+
+      {/* RESEARCH QUALITY / FACT CHECK */}
+      <Card variant="default">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {quality?.ready ? (
+                <ShieldCheck className="w-4 h-4 text-emerald-400" />
+              ) : (
+                <ShieldAlert className="w-4 h-4 text-rose-400" />
+              )}
+              <div>
+                <CardTitle className="text-base font-bold text-white">Research Quality</CardTitle>
+                <CardDescription>
+                  Deterministic fact-check gate based only on stored claims and evidence.
+                </CardDescription>
+              </div>
+            </div>
+            {quality && (
+              <div className="flex items-center gap-2">
+                <Badge variant={quality.ready ? 'emerald' : 'rose'}>
+                  {quality.ready ? 'Ready' : 'Not Ready'}
+                </Badge>
+                <span className="text-xs font-bold text-slate-200">Score {quality.score}</span>
+              </div>
+            )}
+          </div>
+        </CardHeader>
+
+        <CardContent className="space-y-4">
+          {qualityLoading ? (
+            <div className="space-y-2">
+              <div className="h-16 bg-slate-900 rounded-xl animate-pulse" />
+              <div className="h-20 bg-slate-900 rounded-xl animate-pulse" />
+            </div>
+          ) : qualityError ? (
+            <p className="text-xs text-rose-300 flex items-center gap-1.5">
+              <AlertCircle className="w-4 h-4" /> {qualityError}
+            </p>
+          ) : quality ? (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div className="p-3 rounded-lg bg-slate-950 border border-slate-800">
+                  <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block">
+                    Total Claims
+                  </span>
+                  <span className="text-lg font-bold text-white">{quality.summary.total_claims}</span>
+                </div>
+                <div className="p-3 rounded-lg bg-slate-950 border border-slate-800">
+                  <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block">
+                    Supported
+                  </span>
+                  <span className="text-lg font-bold text-emerald-400">{quality.summary.supported_claims}</span>
+                </div>
+                <div className="p-3 rounded-lg bg-slate-950 border border-slate-800">
+                  <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block">
+                    Not Verified
+                  </span>
+                  <span className="text-lg font-bold text-amber-400">
+                    {quality.summary.unverified_claims + quality.summary.uncertain_claims}
+                  </span>
+                </div>
+                <div className="p-3 rounded-lg bg-slate-950 border border-slate-800">
+                  <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block">
+                    Contradicted
+                  </span>
+                  <span className="text-lg font-bold text-rose-400">{quality.summary.contradicted_claims}</span>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <Badge size="sm" variant="slate">
+                  {quality.summary.claims_with_evidence} with evidence
+                </Badge>
+                <Badge size="sm" variant={quality.summary.claims_without_evidence > 0 ? 'rose' : 'slate'}>
+                  {quality.summary.claims_without_evidence} without evidence
+                </Badge>
+                <Badge size="sm" variant="indigo">
+                  Important {quality.summary.important_claims_ready}/{quality.summary.important_claims} ready
+                </Badge>
+              </div>
+
+              {quality.issues.length > 0 ? (
+                <div className="space-y-2">
+                  {quality.issues
+                    .filter((issue) => issue.severity === 'blocker')
+                    .map((issue, index) => (
+                      <div
+                        key={`blocker-${issue.code}-${issue.claim_id ?? 'report'}-${index}`}
+                        className="flex items-start gap-2 p-2.5 rounded-lg bg-rose-950/40 border border-rose-800/50 text-rose-300 text-xs"
+                      >
+                        <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                        <div>
+                          <span className="font-semibold uppercase tracking-wide text-[10px]">{issue.code}</span>
+                          <span className="text-rose-200/90"> — {issue.message}</span>
+                        </div>
+                      </div>
+                    ))}
+                  {quality.issues
+                    .filter((issue) => issue.severity === 'warning')
+                    .map((issue, index) => (
+                      <div
+                        key={`warning-${issue.code}-${issue.claim_id ?? 'report'}-${index}`}
+                        className="flex items-start gap-2 p-2.5 rounded-lg bg-amber-950/40 border border-amber-800/50 text-amber-300 text-xs"
+                      >
+                        <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                        <div>
+                          <span className="font-semibold uppercase tracking-wide text-[10px]">{issue.code}</span>
+                          <span className="text-amber-200/90"> — {issue.message}</span>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              ) : (
+                <p className="text-xs text-emerald-300 flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4" /> No blockers or warnings — research is ready to proceed.
+                </p>
+              )}
+            </div>
+          ) : null}
         </CardContent>
       </Card>
 
