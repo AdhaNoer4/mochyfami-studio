@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\V1\IdeaController;
 use App\Http\Controllers\Api\V1\ProjectController;
 use App\Http\Controllers\Api\V1\ResearchClaimController;
 use App\Http\Controllers\Api\V1\ResearchController;
+use App\Http\Controllers\Api\V1\ResearchDiscoveryController;
 use App\Http\Controllers\Api\V1\ResearchQualityController;
 use App\Http\Controllers\Api\V1\ResearchSourceController;
 use Illuminate\Support\Facades\Route;
@@ -42,6 +43,8 @@ Route::prefix('v1')->group(function () {
             Route::delete('/', [ResearchController::class, 'destroy']);
 
             Route::get('quality', [ResearchQualityController::class, 'show']);
+
+            Route::post('discover', [ResearchDiscoveryController::class, 'discover']);
 
             Route::get('sources', [ResearchSourceController::class, 'index']);
             Route::post('sources', [ResearchSourceController::class, 'store']);

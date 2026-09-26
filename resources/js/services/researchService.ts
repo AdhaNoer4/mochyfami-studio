@@ -4,10 +4,12 @@ import {
   ApiResponse,
   ClaimFormData,
   ResearchClaim,
+  ResearchDiscoveryRequest,
   ResearchQuality,
   ResearchReport,
   ResearchSource,
   ResearchStatus,
+  SearchResponse,
   SourceFormData,
   UpdateResearchPayload,
 } from '../types';
@@ -123,6 +125,14 @@ export const researchService = {
   async getQuality(projectId: number): Promise<ResearchQuality> {
     const response = await apiClient.get<ApiResponse<ResearchQuality>>(
       `/projects/${projectId}/research/quality`,
+    );
+    return response.data.data;
+  },
+
+  async discoverSources(projectId: number, payload: ResearchDiscoveryRequest): Promise<SearchResponse> {
+    const response = await apiClient.post<ApiResponse<SearchResponse>>(
+      `/projects/${projectId}/research/discover`,
+      payload,
     );
     return response.data.data;
   },

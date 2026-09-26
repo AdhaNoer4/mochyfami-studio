@@ -366,3 +366,23 @@ export interface ResearchQuality {
   summary: ResearchQualitySummary;
   issues: ResearchQualityIssue[];
 }
+
+export interface ResearchDiscoveryRequest {
+  query: string;
+  max_results?: number;
+  provider?: string;
+}
+
+export interface SearchResult {
+  title: string;
+  url: string;
+  snippet?: string | null;
+  domain: string;
+  published_at?: string | null;
+}
+
+export interface SearchResponse {
+  provider: string;
+  query: string;
+  results: SearchResult[];
+}

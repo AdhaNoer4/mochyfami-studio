@@ -12,6 +12,7 @@ use App\Policies\ProjectPolicy;
 use App\Policies\ResearchClaimPolicy;
 use App\Policies\ResearchReportPolicy;
 use App\Policies\ResearchSourcePolicy;
+use App\Services\Research\SearchProviderRegistry;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 
@@ -22,7 +23,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->singleton(SearchProviderRegistry::class, function () {
+            return new SearchProviderRegistry(config('research.search.providers', []));
+        });
     }
 
     /**

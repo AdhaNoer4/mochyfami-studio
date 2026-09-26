@@ -13,6 +13,8 @@ import {
   ResearchSource,
   ResearchStatus,
   ResearchTransition,
+  SearchResponse,
+  SearchResult,
   SourceFormData,
   SourceType,
 } from '../../types';
@@ -22,10 +24,12 @@ import {
   BookOpen,
   Calendar,
   CheckCircle2,
+  ExternalLink,
   Link2,
   Pencil,
   Plus,
   Save,
+  Search,
   ShieldAlert,
   ShieldCheck,
   Trash2,
@@ -118,6 +122,12 @@ export const ResearchPanel: React.FC<ResearchPanelProps> = ({ projectId }) => {
   const [quality, setQuality] = useState<ResearchQuality | null>(null);
   const [qualityLoading, setQualityLoading] = useState<boolean>(true);
   const [qualityError, setQualityError] = useState<string | null>(null);
+
+  const [discoveryQuery, setDiscoveryQuery] = useState<string>('');
+  const [discoveryMaxResults, setDiscoveryMaxResults] = useState<number>(10);
+  const [discovering, setDiscovering] = useState<boolean>(false);
+  const [discoverError, setDiscoverError] = useState<string | null>(null);
+  const [discovery, setDiscovery] = useState<SearchResponse | null>(null);
 
   const refreshQuality = useCallback(async () => {
     try {
@@ -269,6 +279,39 @@ export const ResearchPanel: React.FC<ResearchPanelProps> = ({ projectId }) => {
     });
     setEditingSourceId(source.id);
     setShowSourceForm(true);
+  };
+
+  const handleDiscover = async () => {
+    if (!discoveryQuery.trim()) return;
+    setDiscovering(true);
+    setDiscoverError(null);
+    setMessage(null);
+    setPanelError(null);
+    try {
+      const response = await researchService.discoverSources(projectId, {
+        query: discoveryQuery.trim(),
+        max_results: discoveryMaxResults,
+      });
+      setDiscovery(response);
+    } catch (err) {
+      setDiscovery(null);
+      setDiscoverError(getApiErrorMessage(err, 'Unable to discover sources.'));
+    } finally {
+      setDiscovering(false);
+    }
+  };
+
+  const addDiscoveredSource = (result: SearchResult) => {
+    setSourceDraft({
+      title: result.title,
+      url: result.url,
+      domain: result.domain ?? '',
+      source_type: 'other',
+      published_at: result.published_at ? result.published_at.slice(0, 10) : '',
+    });
+    setEditingSourceId(null);
+    setShowSourceForm(true);
+    setPanelError(null);
   };
 
   const handleSaveSource = async () => {
@@ -702,6 +745,117 @@ export const ResearchPanel: React.FC<ResearchPanelProps> = ({ projectId }) => {
               )}
             </div>
           ) : null}
+        </CardContent>
+      </Card>
+
+      {/* SOURCE DISCOVERY */}
+      <Card variant="default">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-base font-bold text-white">Discover Sources</CardTitle>
+              <CardDescription>
+                Search the configured provider for candidate sources. Results are never saved automatically.
+              </CardDescription>
+            </div>
+            {discovery && (
+              <Badge size="sm" variant="indigo">
+                {discovery.results.length} candidate{discovery.results.length === 1 ? '' : 's'} · {discovery.provider}
+              </Badge>
+            )}
+          </div>
+        </CardHeader>
+
+        <CardContent className="space-y-3">
+          <div className="flex flex-col sm:flex-row gap-2">
+            <input
+              className={`${inputClasses} flex-1`}
+              value={discoveryQuery}
+              onChange={(e) => setDiscoveryQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleDiscover();
+              }}
+              placeholder="Search for sources, e.g. why cats purr"
+            />
+            <input
+              type="number"
+              className={`${inputClasses} w-24`}
+              value={discoveryMaxResults}
+              min={1}
+              max={20}
+              onChange={(e) =>
+                setDiscoveryMaxResults(Math.max(1, Math.min(20, Number(e.target.value) || 1)))
+              }
+              title="Max results"
+            />
+            <Button
+              size="sm"
+              icon={<Search className="w-3.5 h-3.5" />}
+              isLoading={discovering}
+              disabled={!discoveryQuery.trim()}
+              onClick={handleDiscover}
+            >
+              Discover
+            </Button>
+          </div>
+
+          {discoverError && (
+            <p className="text-xs text-rose-300 flex items-center gap-1.5">
+              <AlertCircle className="w-4 h-4" /> {discoverError}
+            </p>
+          )}
+
+          {discovery && (
+            <div className="space-y-2">
+              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">
+                Candidate Sources
+              </span>
+              {discovery.results.length === 0 ? (
+                <p className="text-xs text-slate-500 text-center py-4">No candidates found for this query.</p>
+              ) : (
+                discovery.results.map((result, index) => (
+                  <div
+                    key={`${result.url}-${index}`}
+                    className="p-3 rounded-lg bg-slate-950 border border-slate-800 space-y-1.5"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-slate-100 truncate">{result.title}</span>
+                          <Badge size="sm" variant="indigo">
+                            {result.domain}
+                          </Badge>
+                        </div>
+                        {result.snippet && (
+                          <p className="text-[11px] text-slate-400 leading-relaxed">{result.snippet}</p>
+                        )}
+                        <a
+                          href={result.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-[11px] text-indigo-400 hover:text-indigo-300 truncate"
+                        >
+                          <ExternalLink className="w-3 h-3 shrink-0" /> {result.url}
+                        </a>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        icon={<Plus className="w-3.5 h-3.5" />}
+                        onClick={() => addDiscoveredSource(result)}
+                      >
+                        Add Source
+                      </Button>
+                    </div>
+                  </div>
+                ))
+              )}
+              <p className="text-[10px] text-slate-500">
+                Candidates are not saved automatically. Use “Add Source” to add one to this research as a source, then
+                optionally attach it to a claim as evidence.
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
 
