@@ -8,6 +8,7 @@ import {
   ResearchClaim,
   ResearchClaimImportance,
   ResearchClaimStatus,
+  ResearchPipeline,
   ResearchQuality,
   ResearchReport,
   ResearchSource,
@@ -26,6 +27,7 @@ import {
   CheckCircle2,
   ExternalLink,
   Link2,
+  ListChecks,
   Pencil,
   Plus,
   Save,
@@ -129,6 +131,10 @@ export const ResearchPanel: React.FC<ResearchPanelProps> = ({ projectId }) => {
   const [discoverError, setDiscoverError] = useState<string | null>(null);
   const [discovery, setDiscovery] = useState<SearchResponse | null>(null);
 
+  const [pipeline, setPipeline] = useState<ResearchPipeline | null>(null);
+  const [pipelineLoading, setPipelineLoading] = useState<boolean>(true);
+  const [pipelineError, setPipelineError] = useState<string | null>(null);
+
   const refreshQuality = useCallback(async () => {
     try {
       const result = await researchService.getQuality(projectId);
@@ -140,16 +146,30 @@ export const ResearchPanel: React.FC<ResearchPanelProps> = ({ projectId }) => {
     }
   }, [projectId]);
 
+  const refreshPipeline = useCallback(async () => {
+    try {
+      const result = await researchService.getPipeline(projectId);
+      setPipeline(result);
+      setPipelineError(null);
+    } catch (err) {
+      setPipeline(null);
+      setPipelineError(getApiErrorMessage(err, 'Unable to load research pipeline.'));
+    }
+  }, [projectId]);
+
   const refreshReport = useCallback(async () => {
     const data = await researchService.getResearch(projectId);
     setReport(data);
     if (data) {
       await refreshQuality();
+      await refreshPipeline();
     } else {
       setQuality(null);
       setQualityError(null);
+      setPipeline(null);
+      setPipelineError(null);
     }
-  }, [projectId, refreshQuality]);
+  }, [projectId, refreshQuality, refreshPipeline]);
 
   useEffect(() => {
     let active = true;
@@ -173,6 +193,18 @@ export const ResearchPanel: React.FC<ResearchPanelProps> = ({ projectId }) => {
               setQualityError(getApiErrorMessage(err, 'Unable to load research quality.'));
             }
           }
+          try {
+            const pipelineResult = await researchService.getPipeline(projectId);
+            if (active) {
+              setPipeline(pipelineResult);
+              setPipelineError(null);
+            }
+          } catch (err) {
+            if (active) {
+              setPipeline(null);
+              setPipelineError(getApiErrorMessage(err, 'Unable to load research pipeline.'));
+            }
+          }
         }
       })
       .catch((err) => {
@@ -182,6 +214,7 @@ export const ResearchPanel: React.FC<ResearchPanelProps> = ({ projectId }) => {
         if (active) {
           setLoading(false);
           setQualityLoading(false);
+          setPipelineLoading(false);
         }
       });
 
@@ -197,6 +230,7 @@ export const ResearchPanel: React.FC<ResearchPanelProps> = ({ projectId }) => {
       const created = await researchService.createResearch(projectId);
       setReport(created);
       await refreshQuality();
+      await refreshPipeline();
       setMessage('Research report created successfully.');
     } catch (err) {
       setPanelError(getApiErrorMessage(err, 'Unable to create research report.'));
@@ -213,6 +247,8 @@ export const ResearchPanel: React.FC<ResearchPanelProps> = ({ projectId }) => {
       setReport(null);
       setQuality(null);
       setQualityError(null);
+      setPipeline(null);
+      setPipelineError(null);
       setConfirmDeleteResearch(false);
       setMessage('Research report deleted successfully.');
     } catch (err) {
@@ -501,6 +537,111 @@ export const ResearchPanel: React.FC<ResearchPanelProps> = ({ projectId }) => {
           <span>{panelError}</span>
         </div>
       )}
+
+      {/* RESEARCH PIPELINE */}
+      {pipelineLoading ? (
+        <Card variant="default">
+          <CardContent className="space-y-4">
+            <div className="h-16 bg-slate-900 rounded-xl animate-pulse" />
+            <div className="h-20 bg-slate-900 rounded-xl animate-pulse" />
+          </CardContent>
+        </Card>
+      ) : pipelineError ? (
+        <div className="flex items-start gap-2 p-3 rounded-lg bg-rose-950/40 border border-rose-800/50 text-rose-300 text-xs">
+          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+          <span>{pipelineError}</span>
+        </div>
+      ) : pipeline ? (
+        <Card variant="default">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-base font-bold text-white flex items-center gap-2">
+                  <ListChecks className="w-4 h-4 text-indigo-400" />
+                  Research Pipeline
+                </CardTitle>
+                <CardDescription>
+                  Deterministic execution progress derived from your sources, claims and evidence.
+                </CardDescription>
+              </div>
+              <Badge variant={pipeline.ready_for_script ? 'emerald' : 'indigo'}>
+                {pipeline.stage_label}
+              </Badge>
+            </div>
+          </CardHeader>
+
+          <CardContent className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="flex-1 h-2 rounded-full bg-slate-800 overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all ${
+                    pipeline.ready_for_script ? 'bg-emerald-500' : 'bg-indigo-500'
+                  }`}
+                  style={{ width: `${pipeline.progress}%` }}
+                />
+              </div>
+              <span className="text-xs font-bold text-slate-300">{pipeline.progress}%</span>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <div className="rounded-lg border border-slate-800 bg-slate-950 p-2">
+                <span className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Sources</span>
+                <span className="text-base font-bold text-white">{pipeline.summary.total_sources}</span>
+              </div>
+              <div className="rounded-lg border border-slate-800 bg-slate-950 p-2">
+                <span className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Claims</span>
+                <span className="text-base font-bold text-white">{pipeline.summary.total_claims}</span>
+              </div>
+              <div className="rounded-lg border border-slate-800 bg-slate-950 p-2">
+                <span className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider">With Evidence</span>
+                <span className="text-base font-bold text-white">
+                  {pipeline.summary.claims_with_evidence}
+                  <span className="text-xs font-medium text-slate-500">
+                    {' '}/ {pipeline.summary.total_claims}
+                  </span>
+                </span>
+              </div>
+              <div className="rounded-lg border border-slate-800 bg-slate-950 p-2">
+                <span className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Unresolved</span>
+                <span className="text-base font-bold text-white">{pipeline.summary.unresolved_claims}</span>
+              </div>
+            </div>
+
+            <div>
+              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block mb-2">
+                Next Actions
+              </span>
+              {pipeline.next_actions.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {pipeline.next_actions.map((action) => (
+                    <span
+                      key={action.code}
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-semibold ${
+                        action.priority === 'high'
+                          ? 'bg-rose-950/50 border border-rose-800/50 text-rose-300'
+                          : 'bg-amber-950/40 border border-amber-800/40 text-amber-300'
+                      }`}
+                    >
+                      {action.priority === 'high' ? (
+                        <AlertCircle className="w-3 h-3" />
+                      ) : (
+                        <AlertTriangle className="w-3 h-3" />
+                      )}
+                      {action.code}
+                      <span className="font-normal text-slate-400">— {action.message}</span>
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 text-xs text-emerald-300">
+                  <CheckCircle2 className="w-4 h-4" />
+                  The research is ready for script. No further actions required.
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {/* STATUS + DETAILS */}
       <Card variant="default">

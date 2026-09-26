@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\V1\ProjectController;
 use App\Http\Controllers\Api\V1\ResearchClaimController;
 use App\Http\Controllers\Api\V1\ResearchController;
 use App\Http\Controllers\Api\V1\ResearchDiscoveryController;
+use App\Http\Controllers\Api\V1\ResearchPipelineController;
 use App\Http\Controllers\Api\V1\ResearchQualityController;
 use App\Http\Controllers\Api\V1\ResearchSourceController;
 use Illuminate\Support\Facades\Route;
@@ -41,6 +42,8 @@ Route::prefix('v1')->group(function () {
             Route::patch('/', [ResearchController::class, 'update']);
             Route::patch('/status', [ResearchController::class, 'transitionStatus']);
             Route::delete('/', [ResearchController::class, 'destroy']);
+
+            Route::get('pipeline', [ResearchPipelineController::class, 'show']);
 
             Route::get('quality', [ResearchQualityController::class, 'show']);
 

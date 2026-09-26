@@ -386,3 +386,34 @@ export interface SearchResponse {
   query: string;
   results: SearchResult[];
 }
+
+export type PipelineActionPriority = 'high' | 'medium';
+
+export interface PipelineAction {
+  code: string;
+  priority: PipelineActionPriority;
+  message: string;
+}
+
+export interface ResearchPipelineSummary {
+  total_sources: number;
+  total_claims: number;
+  claims_with_evidence: number;
+  claims_without_evidence: number;
+  unresolved_claims: number;
+  progress_components: {
+    sources: number;
+    claims: number;
+    evidence: number;
+    quality: number;
+  };
+}
+
+export interface ResearchPipeline {
+  stage: string;
+  stage_label: string;
+  progress: number;
+  ready_for_script: boolean;
+  next_actions: PipelineAction[];
+  summary: ResearchPipelineSummary;
+}

@@ -5,6 +5,7 @@ import {
   ClaimFormData,
   ResearchClaim,
   ResearchDiscoveryRequest,
+  ResearchPipeline,
   ResearchQuality,
   ResearchReport,
   ResearchSource,
@@ -125,6 +126,13 @@ export const researchService = {
   async getQuality(projectId: number): Promise<ResearchQuality> {
     const response = await apiClient.get<ApiResponse<ResearchQuality>>(
       `/projects/${projectId}/research/quality`,
+    );
+    return response.data.data;
+  },
+
+  async getPipeline(projectId: number): Promise<ResearchPipeline> {
+    const response = await apiClient.get<ApiResponse<ResearchPipeline>>(
+      `/projects/${projectId}/research/pipeline`,
     );
     return response.data.data;
   },
