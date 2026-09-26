@@ -12,6 +12,8 @@ use App\Http\Controllers\Api\V1\ResearchDiscoveryController;
 use App\Http\Controllers\Api\V1\ResearchPipelineController;
 use App\Http\Controllers\Api\V1\ResearchQualityController;
 use App\Http\Controllers\Api\V1\ResearchSourceController;
+use App\Http\Controllers\Api\V1\ScriptController;
+use App\Http\Controllers\Api\V1\ScriptVersionController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
@@ -61,6 +63,17 @@ Route::prefix('v1')->group(function () {
             Route::get('claims/{claim}/sources', [ResearchClaimController::class, 'sources']);
             Route::post('claims/{claim}/sources/{source}', [ResearchClaimController::class, 'attachSource']);
             Route::delete('claims/{claim}/sources/{source}', [ResearchClaimController::class, 'detachSource']);
+        });
+
+        Route::prefix('projects/{project}/script')->group(function () {
+            Route::post('/', [ScriptController::class, 'store']);
+            Route::get('/', [ScriptController::class, 'show']);
+            Route::patch('/status', [ScriptController::class, 'transitionStatus']);
+
+            Route::get('versions', [ScriptVersionController::class, 'index']);
+            Route::post('versions', [ScriptVersionController::class, 'store']);
+            Route::patch('versions/current', [ScriptVersionController::class, 'updateCurrent']);
+            Route::get('versions/{version}', [ScriptVersionController::class, 'show'])->whereNumber('version');
         });
     });
 });

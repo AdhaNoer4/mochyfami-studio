@@ -57,4 +57,9 @@ class ContentProject extends Model
     {
         return $this->hasOne(ResearchReport::class, 'content_project_id');
     }
+
+    public function script(): HasOne
+    {
+        return $this->hasOne(Script::class, 'content_project_id');
+    }
 }

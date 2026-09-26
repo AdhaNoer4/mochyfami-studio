@@ -5,6 +5,7 @@ import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { projectService } from '../../services/projectService';
 import { ResearchPanel } from '../../components/projects/ResearchPanel';
+import { ScriptPanel } from '../../components/projects/ScriptPanel';
 import { ContentProject, ContentProjectStatus, ProjectTransition } from '../../types';
 import {
   ArrowLeft,
@@ -48,7 +49,7 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({ projectId,
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [confirmTransition, setConfirmTransition] = useState<ProjectTransition | null>(null);
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'research'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'research' | 'script'>('overview');
 
   useEffect(() => {
     setLoading(true);
@@ -270,10 +271,22 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({ projectId,
         >
           Research
         </button>
+        <button
+          className={`px-4 py-2 text-xs font-semibold rounded-t-lg border-b-2 transition-colors ${
+            activeTab === 'script'
+              ? 'border-indigo-500 text-white bg-slate-800/40'
+              : 'border-transparent text-slate-400 hover:text-slate-200'
+          }`}
+          onClick={() => setActiveTab('script')}
+        >
+          Script
+        </button>
       </div>
 
       {activeTab === 'research' ? (
         <ResearchPanel projectId={project.id} />
+      ) : activeTab === 'script' ? (
+        <ScriptPanel projectId={project.id} />
       ) : (
         <>
       {/* Overview Metadata Card */}

@@ -417,3 +417,48 @@ export interface ResearchPipeline {
   next_actions: PipelineAction[];
   summary: ResearchPipelineSummary;
 }
+
+export type ScriptStatus = 'draft' | 'review' | 'approved' | 'archived';
+
+export interface ScriptTransition {
+  status: ScriptStatus;
+  label: string;
+  action: string;
+  destructive: boolean;
+}
+
+export interface ScriptVersion {
+  id: number;
+  script_id: number;
+  version: number;
+  title?: string | null;
+  hook: string;
+  body: string;
+  closing?: string | null;
+  duration_seconds?: number | null;
+  notes?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface Script {
+  id: number;
+  project_id: number;
+  project?: { id: number; title: string } | null;
+  status: ScriptStatus;
+  status_label: string;
+  allowed_transitions: ScriptTransition[];
+  current_version: ScriptVersion | null;
+  version_count: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface ScriptFormData {
+  title?: string | null;
+  hook: string;
+  body: string;
+  closing?: string | null;
+  duration_seconds?: number | null;
+  notes?: string | null;
+}
