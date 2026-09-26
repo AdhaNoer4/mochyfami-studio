@@ -1,9 +1,23 @@
 import { apiClient } from '../lib/api';
-import { ApiResponse, Script, ScriptFormData, ScriptStatus, ScriptVersion } from '../types';
+import {
+  ApiResponse,
+  Script,
+  ScriptFormData,
+  ScriptQualityResult,
+  ScriptStatus,
+  ScriptVersion,
+} from '../types';
 
 export const scriptService = {
   async getScript(projectId: number): Promise<Script | null> {
     const response = await apiClient.get<ApiResponse<Script | null>>(`/projects/${projectId}/script`);
+    return response.data.data;
+  },
+
+  async getQuality(projectId: number): Promise<ScriptQualityResult> {
+    const response = await apiClient.get<ApiResponse<ScriptQualityResult>>(
+      `/projects/${projectId}/script/quality`,
+    );
     return response.data.data;
   },
 

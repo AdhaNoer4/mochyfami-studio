@@ -462,3 +462,49 @@ export interface ScriptFormData {
   duration_seconds?: number | null;
   notes?: string | null;
 }
+
+export type ScriptQualitySeverity = 'blocker' | 'warning' | 'info';
+
+export type ScriptClaimMatchState = 'supported_by_text' | 'not_detected' | 'insufficient_text';
+
+export interface ScriptQualityCheck {
+  code: string;
+  severity: ScriptQualitySeverity;
+  passed: boolean;
+  message: string;
+  details?: Record<string, unknown>;
+}
+
+export interface ScriptQualitySummary {
+  total_checks: number;
+  passed_checks: number;
+  failed_checks: number;
+  blocker_count: number;
+  warning_count: number;
+  important_claims: number;
+  aligned_important_claims: number;
+}
+
+export interface ScriptClaimAlignment {
+  claim_id: number;
+  importance: string;
+  status: string;
+  matched: boolean;
+  match_state: ScriptClaimMatchState;
+  match_score: number;
+  message: string;
+}
+
+export interface ScriptQualityResult {
+  script_id: number;
+  version_id: number | null;
+  version: number | null;
+  status: string;
+  ready: boolean;
+  score: number;
+  summary: ScriptQualitySummary;
+  blockers: ScriptQualityCheck[];
+  warnings: ScriptQualityCheck[];
+  checks: ScriptQualityCheck[];
+  claim_alignment: ScriptClaimAlignment[];
+}

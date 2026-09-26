@@ -7,6 +7,8 @@ import { scriptService } from '../../services/scriptService';
 import {
   Script,
   ScriptFormData,
+  ScriptQualityCheck,
+  ScriptQualityResult,
   ScriptStatus,
   ScriptTransition,
   ScriptVersion,
@@ -18,12 +20,15 @@ import {
   CheckCircle2,
   Clock,
   FileText,
+  Gauge,
   History,
   Pencil,
   Plus,
   Save,
+  ShieldCheck,
   Trash2,
   X,
+  XCircle,
 } from 'lucide-react';
 
 interface ScriptPanelProps {
@@ -97,6 +102,10 @@ export const ScriptPanel: React.FC<ScriptPanelProps> = ({ projectId }) => {
   const [confirmTransition, setConfirmTransition] = useState<ScriptTransition | null>(null);
   const [transitioning, setTransitioning] = useState<ScriptStatus | null>(null);
 
+  const [quality, setQuality] = useState<ScriptQualityResult | null>(null);
+  const [qualityLoading, setQualityLoading] = useState<boolean>(true);
+  const [qualityError, setQualityError] = useState<string | null>(null);
+
   const refreshReadiness = useCallback(async () => {
     try {
       const pipeline = await researchService.getPipeline(projectId);
@@ -107,6 +116,17 @@ export const ScriptPanel: React.FC<ScriptPanelProps> = ({ projectId }) => {
     } catch {
       setPipelineReady(false);
       setReadinessNote('No research report yet for this project.');
+    }
+  }, [projectId]);
+
+  const refreshQuality = useCallback(async () => {
+    try {
+      const result = await scriptService.getQuality(projectId);
+      setQuality(result);
+      setQualityError(null);
+    } catch (err) {
+      setQuality(null);
+      setQualityError(getApiErrorMessage(err, 'Unable to load script quality.'));
     }
   }, [projectId]);
 
@@ -123,6 +143,23 @@ export const ScriptPanel: React.FC<ScriptPanelProps> = ({ projectId }) => {
         if (data) {
           const versionData = await scriptService.getVersions(projectId);
           if (active) setVersions(versionData);
+          try {
+            const qualityData = await scriptService.getQuality(projectId);
+            if (active) {
+              setQuality(qualityData);
+              setQualityError(null);
+            }
+          } catch (err) {
+            if (active) {
+              setQuality(null);
+              setQualityError(getApiErrorMessage(err, 'Unable to load script quality.'));
+            }
+          }
+        } else {
+          if (active) {
+            setQuality(null);
+            setQualityError(null);
+          }
         }
       })
       .catch((err) => {
@@ -133,6 +170,7 @@ export const ScriptPanel: React.FC<ScriptPanelProps> = ({ projectId }) => {
           setLoading(false);
           setReadinessLoading(false);
           setVersionsLoading(false);
+          setQualityLoading(false);
         }
       });
 
@@ -193,6 +231,7 @@ export const ScriptPanel: React.FC<ScriptPanelProps> = ({ projectId }) => {
       setViewingVersion(null);
       setVersions(await scriptService.getVersions(projectId));
       await refreshReadiness();
+      await refreshQuality();
     } catch (err) {
       setPanelError(getApiErrorMessage(err, 'Unable to save the script.'));
     } finally {
@@ -218,6 +257,7 @@ export const ScriptPanel: React.FC<ScriptPanelProps> = ({ projectId }) => {
       setScript(updated);
       setConfirmTransition(null);
       setMessage('Script status updated successfully.');
+      await refreshQuality();
     } catch (err) {
       setPanelError(getApiErrorMessage(err, 'Unable to update script status.'));
     } finally {
@@ -535,6 +575,103 @@ export const ScriptPanel: React.FC<ScriptPanelProps> = ({ projectId }) => {
         </Card>
       )}
 
+      {/* SCRIPT QUALITY */}
+      <Card variant="default">
+        <CardHeader>
+          <CardTitle className="text-base font-bold text-white flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4 text-indigo-400" />
+            Script Quality
+            {quality && (
+              <>
+                <Badge variant={quality.ready ? 'emerald' : 'rose'}>{quality.ready ? 'READY' : 'NOT READY'}</Badge>
+                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-300 bg-slate-950 border border-slate-800 rounded-lg px-2 py-0.5">
+                  <Gauge className="w-3 h-3 text-indigo-400" />
+                  Score {quality.score}/100
+                </span>
+              </>
+            )}
+          </CardTitle>
+          <CardDescription>
+            Deterministic alignment and quality heuristics against the current version and research.
+            This does not claim factual correctness.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {qualityLoading ? (
+            <div className="h-20 bg-slate-900 rounded-xl animate-pulse" />
+          ) : qualityError ? (
+            <p className="text-xs text-rose-400">{qualityError}</p>
+          ) : quality ? (
+            <>
+              <div className="grid grid-cols-3 gap-3">
+                <QualityMetric
+                  label="Blockers"
+                  value={String(quality.summary.blocker_count)}
+                  tone={quality.summary.blocker_count > 0 ? 'rose' : 'emerald'}
+                />
+                <QualityMetric
+                  label="Warnings"
+                  value={String(quality.summary.warning_count)}
+                  tone={quality.summary.warning_count > 0 ? 'amber' : 'emerald'}
+                />
+                <QualityMetric
+                  label="High claims aligned"
+                  value={`${quality.summary.aligned_important_claims}/${quality.summary.important_claims}`}
+                  tone="indigo"
+                />
+              </div>
+
+              <div>
+                <span className="block text-[11px] font-semibold text-slate-400 mb-2">
+                  Checks · {quality.summary.passed_checks}/{quality.summary.total_checks} passed
+                </span>
+                <div className="space-y-1.5">
+                  {quality.checks.map((check, index) => (
+                    <QualityCheckRow key={`${check.code}-${index}`} check={check} />
+                  ))}
+                </div>
+              </div>
+
+              {quality.claim_alignment.length > 0 && (
+                <div>
+                  <span className="block text-[11px] font-semibold text-slate-400 mb-2">Claim alignment</span>
+                  <div className="space-y-1.5">
+                    {quality.claim_alignment.map((alignment) => (
+                      <div
+                        key={alignment.claim_id}
+                        className="flex items-center justify-between gap-3 rounded-lg border border-slate-800 bg-slate-950 px-3 py-2"
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          {alignment.matched ? (
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                          ) : (
+                            <AlertCircle
+                              className={`w-3.5 h-3.5 shrink-0 ${
+                                alignment.importance === 'high' ? 'text-rose-400' : 'text-amber-400'
+                              }`}
+                            />
+                          )}
+                          <span className="text-xs text-slate-200 truncate">{alignment.message}</span>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <Badge>{alignment.importance}</Badge>
+                          <Badge variant={alignment.status === 'supported' ? 'emerald' : 'amber'}>
+                            {alignment.status}
+                          </Badge>
+                          <span className="text-[11px] font-semibold text-slate-400">{alignment.match_score}%</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            <p className="text-xs text-slate-500">No evaluation available for this script.</p>
+          )}
+        </CardContent>
+      </Card>
+
       {/* VERSION HISTORY */}
       <Card variant="default">
         <CardHeader>
@@ -713,4 +850,55 @@ function versionHistoryLabel(versions: ScriptVersion[], currentVersion: ScriptVe
   const total = versions.length;
   if (!currentVersion) return `${total} version${total === 1 ? '' : 's'}`;
   return `Version ${versions.map((v) => v.version).join(' · ')} — current is v${currentVersion.version}`;
+}
+
+function QualityCheckRow({ check }: { check: ScriptQualityCheck }) {
+  const failed = !check.passed;
+  const icon = check.passed ? (
+    <CheckCircle2
+      className={`w-3.5 h-3.5 shrink-0 ${check.severity === 'info' ? 'text-indigo-400' : 'text-emerald-400'}`}
+    />
+  ) : check.severity === 'blocker' ? (
+    <XCircle className="w-3.5 h-3.5 shrink-0 text-rose-400" />
+  ) : (
+    <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-amber-400" />
+  );
+
+  return (
+    <div className="flex items-center gap-2 rounded-lg border border-slate-800 bg-slate-950 px-3 py-2">
+      {icon}
+      <span
+        className={`text-[11px] font-mono font-semibold shrink-0 ${
+          failed ? (check.severity === 'blocker' ? 'text-rose-300' : 'text-amber-300') : 'text-slate-400'
+        }`}
+      >
+        {check.code}
+      </span>
+      <span className="text-xs text-slate-300 min-w-0">{check.message}</span>
+    </div>
+  );
+}
+
+function QualityMetric({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone: 'emerald' | 'rose' | 'amber' | 'indigo';
+}) {
+  const toneClasses = {
+    emerald: 'text-emerald-400',
+    rose: 'text-rose-400',
+    amber: 'text-amber-400',
+    indigo: 'text-indigo-400',
+  };
+
+  return (
+    <div className="rounded-lg border border-slate-800 bg-slate-950 px-3 py-2">
+      <span className={`block text-lg font-bold ${toneClasses[tone]}`}>{value}</span>
+      <span className="block text-[10px] uppercase tracking-wider text-slate-500">{label}</span>
+    </div>
+  );
 }
