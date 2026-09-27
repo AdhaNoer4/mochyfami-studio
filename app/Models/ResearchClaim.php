@@ -37,4 +37,9 @@ class ResearchClaim extends Model
     {
         return $this->belongsToMany(Source::class, 'research_claim_sources')->withTimestamps();
     }
+
+    public function scriptVersions(): BelongsToMany
+    {
+        return $this->belongsToMany(ScriptVersion::class, 'script_version_research_claim')->withTimestamps();
+    }
 }

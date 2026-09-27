@@ -4,6 +4,7 @@ import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
 import { getApiErrorMessage, researchService } from '../../services/researchService';
 import { scriptService } from '../../services/scriptService';
+import { ResearchTraceability } from './ResearchTraceability';
 import {
   ResearchScriptContext,
   Script,
@@ -658,6 +659,9 @@ export const ScriptPanel: React.FC<ScriptPanelProps> = ({ projectId }) => {
         </Card>
       )}
 
+      {/* RESEARCH TRACEABILITY */}
+      {currentVersion && <ResearchTraceability projectId={projectId} version={currentVersion} />}
+
       {/* SCRIPT QUALITY */}
       <Card variant="default">
         <CardHeader>
@@ -1020,6 +1024,7 @@ export const ScriptPanel: React.FC<ScriptPanelProps> = ({ projectId }) => {
             </div>
             <div className="overflow-y-auto space-y-3 pr-1">
               <VersionFields version={viewingVersion} />
+              <ResearchTraceability projectId={projectId} version={viewingVersion} readonly />
             </div>
           </Card>
         </div>

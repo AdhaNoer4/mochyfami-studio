@@ -627,3 +627,31 @@ export interface ScriptGenerationResult {
   generation: ScriptGenerationMetadata;
   quality: ScriptQualityResult;
 }
+
+export interface ScriptVersionResearchClaim {
+  id: number;
+  claim: string;
+  status: ResearchClaimStatus;
+  status_label: string;
+  importance: ResearchClaimImportance;
+  importance_label: string;
+  has_evidence: boolean;
+  sources?: ResearchSource[];
+}
+
+export interface ScriptTraceabilitySummary {
+  total_claims: number;
+  supported_claims: number;
+  unverified_claims: number;
+  uncertain_claims: number;
+  contradicted_claims: number;
+  claims_with_evidence: number;
+  claims_without_evidence: number;
+  traceability_complete: boolean;
+  warnings: string[];
+}
+
+export interface ScriptTraceabilityData {
+  items: ScriptVersionResearchClaim[];
+  traceability: ScriptTraceabilitySummary;
+}

@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\V1\ScriptController;
 use App\Http\Controllers\Api\V1\ScriptGenerationController;
 use App\Http\Controllers\Api\V1\ScriptQualityController;
 use App\Http\Controllers\Api\V1\ScriptVersionController;
+use App\Http\Controllers\Api\V1\ScriptVersionResearchClaimController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
@@ -86,6 +87,10 @@ Route::prefix('v1')->group(function () {
             Route::post('versions', [ScriptVersionController::class, 'store']);
             Route::patch('versions/current', [ScriptVersionController::class, 'updateCurrent']);
             Route::get('versions/{version}', [ScriptVersionController::class, 'show'])->whereNumber('version');
+
+            Route::get('versions/{version}/research-claims', [ScriptVersionResearchClaimController::class, 'index'])->whereNumber('version');
+            Route::post('versions/{version}/research-claims/{claim}', [ScriptVersionResearchClaimController::class, 'store'])->whereNumber('version');
+            Route::delete('versions/{version}/research-claims/{claim}', [ScriptVersionResearchClaimController::class, 'destroy'])->whereNumber('version');
         });
     });
 });

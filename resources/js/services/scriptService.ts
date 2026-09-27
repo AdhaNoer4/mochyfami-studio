@@ -7,7 +7,9 @@ import {
   ScriptGenerationResult,
   ScriptQualityResult,
   ScriptStatus,
+  ScriptTraceabilityData,
   ScriptVersion,
+  ScriptVersionResearchClaim,
 } from '../types';
 
 export const scriptService = {
@@ -66,5 +68,30 @@ export const scriptService = {
       data,
     );
     return response.data.data;
+  },
+
+  async listResearchClaims(
+    projectId: number,
+    version: number,
+  ): Promise<ScriptTraceabilityData> {
+    const response = await apiClient.get<ApiResponse<ScriptTraceabilityData>>(
+      `/projects/${projectId}/script/versions/${version}/research-claims`,
+    );
+    return response.data.data;
+  },
+
+  async attachResearchClaim(
+    projectId: number,
+    version: number,
+    claimId: number,
+  ): Promise<ScriptVersionResearchClaim> {
+    const response = await apiClient.post<ApiResponse<ScriptVersionResearchClaim>>(
+      `/projects/${projectId}/script/versions/${version}/research-claims/${claimId}`,
+    );
+    return response.data.data;
+  },
+
+  async detachResearchClaim(projectId: number, version: number, claimId: number): Promise<void> {
+    await apiClient.delete(`/projects/${projectId}/script/versions/${version}/research-claims/${claimId}`);
   },
 };

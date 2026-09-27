@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class ScriptVersion extends Model
 {
@@ -32,5 +33,10 @@ class ScriptVersion extends Model
     public function script(): BelongsTo
     {
         return $this->belongsTo(Script::class, 'script_id');
+    }
+
+    public function researchClaims(): BelongsToMany
+    {
+        return $this->belongsToMany(ResearchClaim::class, 'script_version_research_claim')->withTimestamps();
     }
 }
