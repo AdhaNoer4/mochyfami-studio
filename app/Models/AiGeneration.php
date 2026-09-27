@@ -13,6 +13,7 @@ class AiGeneration extends Model
 
     protected $fillable = [
         'script_id',
+        'research_report_id',
         'provider',
         'model',
         'prompt_profile',
@@ -32,6 +33,11 @@ class AiGeneration extends Model
     public function script(): BelongsTo
     {
         return $this->belongsTo(Script::class, 'script_id');
+    }
+
+    public function researchReport(): BelongsTo
+    {
+        return $this->belongsTo(ResearchReport::class, 'research_report_id');
     }
 
     public function sourceVersion(): BelongsTo

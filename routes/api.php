@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\V1\ProjectController;
 use App\Http\Controllers\Api\V1\ResearchClaimController;
 use App\Http\Controllers\Api\V1\ResearchController;
 use App\Http\Controllers\Api\V1\ResearchDiscoveryController;
+use App\Http\Controllers\Api\V1\ResearchGenerationController;
 use App\Http\Controllers\Api\V1\ResearchPipelineController;
 use App\Http\Controllers\Api\V1\ResearchQualityController;
 use App\Http\Controllers\Api\V1\ResearchSourceController;
@@ -52,6 +53,8 @@ Route::prefix('v1')->group(function () {
             Route::get('quality', [ResearchQualityController::class, 'show']);
 
             Route::post('discover', [ResearchDiscoveryController::class, 'discover']);
+
+            Route::post('generate', [ResearchGenerationController::class, 'generate']);
 
             Route::get('sources', [ResearchSourceController::class, 'index']);
             Route::post('sources', [ResearchSourceController::class, 'store']);

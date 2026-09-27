@@ -376,6 +376,7 @@ class ScriptGenerationTest extends TestCase
         $this->assertSame([
             'id',
             'script_id',
+            'research_report_id',
             'provider',
             'model',
             'prompt_profile',

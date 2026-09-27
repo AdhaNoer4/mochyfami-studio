@@ -387,6 +387,33 @@ export interface SearchResponse {
   results: SearchResult[];
 }
 
+export interface ResearchGenerationRequest {
+  provider?: string;
+  topic: string;
+  question: string;
+  context?: string | null;
+  max_claims?: number;
+}
+
+export interface ResearchGenerationMetadata {
+  provider: string;
+  model: string | null;
+  prompt_profile: string;
+  prompt_version: string;
+  status: string;
+  research_report_id: number;
+}
+
+export interface ResearchGenerationResult {
+  report: ResearchReport;
+  summary: string | null;
+  generated_claims: ResearchClaim[];
+  generated_sources: ResearchSource[];
+  generation: ResearchGenerationMetadata;
+  quality: ResearchQuality;
+  warning: string;
+}
+
 export type PipelineActionPriority = 'high' | 'medium';
 
 export interface PipelineAction {

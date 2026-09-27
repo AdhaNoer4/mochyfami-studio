@@ -5,6 +5,8 @@ import {
   ClaimFormData,
   ResearchClaim,
   ResearchDiscoveryRequest,
+  ResearchGenerationRequest,
+  ResearchGenerationResult,
   ResearchPipeline,
   ResearchQuality,
   ResearchReport,
@@ -140,6 +142,14 @@ export const researchService = {
   async discoverSources(projectId: number, payload: ResearchDiscoveryRequest): Promise<SearchResponse> {
     const response = await apiClient.post<ApiResponse<SearchResponse>>(
       `/projects/${projectId}/research/discover`,
+      payload,
+    );
+    return response.data.data;
+  },
+
+  async generateResearch(projectId: number, payload: ResearchGenerationRequest): Promise<ResearchGenerationResult> {
+    const response = await apiClient.post<ApiResponse<ResearchGenerationResult>>(
+      `/projects/${projectId}/research/generate`,
       payload,
     );
     return response.data.data;

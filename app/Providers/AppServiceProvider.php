@@ -12,6 +12,7 @@ use App\Policies\ProjectPolicy;
 use App\Policies\ResearchClaimPolicy;
 use App\Policies\ResearchReportPolicy;
 use App\Policies\ResearchSourcePolicy;
+use App\Services\AI\ResearchGenerationProviderRegistry;
 use App\Services\AI\ScriptGenerationProviderRegistry;
 use App\Services\Research\SearchProviderRegistry;
 use Illuminate\Support\Facades\Gate;
@@ -30,6 +31,10 @@ class AppServiceProvider extends ServiceProvider
 
         $this->app->singleton(ScriptGenerationProviderRegistry::class, function () {
             return new ScriptGenerationProviderRegistry(config('ai.providers', []));
+        });
+
+        $this->app->singleton(ResearchGenerationProviderRegistry::class, function () {
+            return new ResearchGenerationProviderRegistry(config('ai.research.providers', []));
         });
     }
 
