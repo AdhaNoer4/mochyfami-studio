@@ -187,6 +187,63 @@ class ScriptService
     }
 
     /**
+     * Fields the revision workflow may replace. Everything else is rejected
+     * or inherited from the source version.
+     */
+    public const REVISION_EDITABLE_FIELDS = [
+        'hook' => 'hook',
+        'body' => 'body',
+        'closing' => 'closing',
+    ];
+
+    /**
+     * Create a NEW script version from an explicit source version.
+     *
+     * Revision is the safe, explicit editing workflow: the source version is
+     * any version of the script (current or historical/archived) and is never
+     * mutated. Only the editable fields passed in $changes are replaced; all
+     * other content fields are inherited from the source. The version number
+     * is always max(existing) + 1, the new version becomes current, and the
+     * script is forced back to draft.
+     *
+     * Traceability mappings are NEVER copied: a new version is a new document
+     * and starts with zero mapped claims.
+     *
+     * @throws ModelNotFoundException
+     */
+    public function createRevision(ContentProject $project, int $sourceVersionNumber, array $changes): Script
+    {
+        return DB::transaction(function () use ($project, $sourceVersionNumber, $changes) {
+            $script = $this->getScriptOrFail($project);
+
+            $source = $this->findVersion($script, $sourceVersionNumber);
+
+            $edits = array_intersect_key($changes, self::REVISION_EDITABLE_FIELDS);
+
+            $merged = array_merge([
+                'title' => $source->title,
+                'hook' => $source->hook,
+                'body' => $source->body,
+                'closing' => $source->closing,
+                'duration_seconds' => $source->duration_seconds,
+                'notes' => $source->notes,
+            ], $edits);
+
+            $version = $script->versions()->create([
+                ...$merged,
+                'version' => (int) $script->versions()->max('version') + 1,
+            ]);
+
+            $script->update([
+                'current_version_id' => $version->id,
+                'status' => ScriptStatus::Draft,
+            ]);
+
+            return $this->freshScript($script);
+        });
+    }
+
+    /**
      * Transition the script status through the workflow.
      *
      * @throws InvalidScriptStatusTransitionException

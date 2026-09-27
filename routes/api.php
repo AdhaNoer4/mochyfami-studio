@@ -87,6 +87,7 @@ Route::prefix('v1')->group(function () {
             Route::post('versions', [ScriptVersionController::class, 'store']);
             Route::patch('versions/current', [ScriptVersionController::class, 'updateCurrent']);
             Route::get('versions/{version}', [ScriptVersionController::class, 'show'])->whereNumber('version');
+            Route::post('versions/{version}/revise', [ScriptVersionController::class, 'revise'])->whereNumber('version');
 
             Route::get('versions/{version}/research-claims', [ScriptVersionResearchClaimController::class, 'index'])->whereNumber('version');
             Route::post('versions/{version}/research-claims/{claim}', [ScriptVersionResearchClaimController::class, 'store'])->whereNumber('version');

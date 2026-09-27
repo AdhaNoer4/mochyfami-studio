@@ -628,6 +628,19 @@ export interface ScriptGenerationResult {
   quality: ScriptQualityResult;
 }
 
+export interface ScriptRevisionRequest {
+  hook?: string;
+  body?: string;
+  closing?: string;
+}
+
+export interface ScriptRevisionResult {
+  script: Script;
+  version: ScriptVersion;
+  quality: ScriptQualityResult;
+  traceability: ScriptTraceabilitySummary;
+}
+
 export interface ScriptVersionResearchClaim {
   id: number;
   claim: string;

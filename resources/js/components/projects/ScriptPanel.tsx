@@ -24,6 +24,7 @@ import {
   Clock,
   FileText,
   Gauge,
+  GitBranch,
   History,
   Pencil,
   Plus,
@@ -124,6 +125,16 @@ export const ScriptPanel: React.FC<ScriptPanelProps> = ({ projectId }) => {
   const [versions, setVersions] = useState<ScriptVersion[]>([]);
   const [versionsLoading, setVersionsLoading] = useState<boolean>(false);
   const [viewingVersion, setViewingVersion] = useState<ScriptVersion | null>(null);
+
+  const [revising, setRevising] = useState<boolean>(false);
+  const [revisingSource, setRevisingSource] = useState<ScriptVersion | null>(null);
+  const [revisionForm, setRevisionForm] = useState<{ hook: string; body: string; closing: string }>({
+    hook: '',
+    body: '',
+    closing: '',
+  });
+  const [revisionSaving, setRevisionSaving] = useState<boolean>(false);
+  const [revisionError, setRevisionError] = useState<string | null>(null);
 
   const [confirmTransition, setConfirmTransition] = useState<ScriptTransition | null>(null);
   const [transitioning, setTransitioning] = useState<ScriptStatus | null>(null);
@@ -257,6 +268,55 @@ export const ScriptPanel: React.FC<ScriptPanelProps> = ({ projectId }) => {
     setForm(toFormState(script?.current_version ?? null));
     setPanelError(null);
     setEditing(true);
+  };
+
+  const openRevise = () => {
+    if (!script?.current_version) return;
+    setRevisingSource(script.current_version);
+    setRevisionForm({
+      hook: script.current_version.hook,
+      body: script.current_version.body,
+      closing: script.current_version.closing ?? '',
+    });
+    setRevisionError(null);
+    setViewingVersion(null);
+    setRevising(true);
+  };
+
+  const cancelRevise = () => {
+    setRevising(false);
+    setRevisingSource(null);
+    setRevisionError(null);
+  };
+
+  const handleRevise = async () => {
+    if (!script || !revisingSource) return;
+    setRevisionSaving(true);
+    setMessage(null);
+    setRevisionError(null);
+    try {
+      const payload = {
+        hook: revisionForm.hook.trim() ? revisionForm.hook.trim() : undefined,
+        body: revisionForm.body.trim() ? revisionForm.body.trim() : undefined,
+        closing: revisionForm.closing.trim() ? revisionForm.closing.trim() : undefined,
+      };
+      const result = await scriptService.reviseVersion(projectId, revisingSource.version, payload);
+      setScript(result.script);
+      setQuality(result.quality);
+      setQualityError(null);
+      setViewingVersion(null);
+      setRevising(false);
+      setRevisingSource(null);
+      setVersions(await scriptService.getVersions(projectId));
+      await refreshReadiness();
+      setMessage(
+        `Versi v${result.version.version} dibuat dari v${revisingSource.version}. Status script kembali ke draft dan mapping research claim kosong — silakan lakukan mapping ulang.`,
+      );
+    } catch (err) {
+      setRevisionError(getApiErrorMessage(err, 'Unable to revise the script version.'));
+    } finally {
+      setRevisionSaving(false);
+    }
   };
 
   const handleSave = async () => {
@@ -594,6 +654,16 @@ export const ScriptPanel: React.FC<ScriptPanelProps> = ({ projectId }) => {
                   Edit Current
                 </Button>
               )}
+              {currentVersion && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  icon={<GitBranch className="w-3.5 h-3.5" />}
+                  onClick={openRevise}
+                >
+                  Revise Version
+                </Button>
+              )}
             </div>
           </div>
         </CardHeader>
@@ -655,6 +725,84 @@ export const ScriptPanel: React.FC<ScriptPanelProps> = ({ projectId }) => {
           </CardHeader>
           <CardContent className="space-y-3">
             <VersionFields version={currentVersion} />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* REVISION FORM */}
+      {revising && revisingSource && (
+        <Card variant="default">
+          <CardHeader>
+            <CardTitle className="text-base font-bold text-white flex items-center gap-2">
+              <GitBranch className="w-4 h-4 text-indigo-400" />
+              Revise v{revisingSource.version} → New v{script.version_count + 1}
+            </CardTitle>
+            <CardDescription>
+              Only hook, body, and closing are replaced. Everything else is inherited from v
+              {revisingSource.version}; the script status returns to draft and research-claim mappings
+              are NOT copied to the new version.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-[11px] text-amber-300/90 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
+              Versi baru belum memiliki mapping research claim. Silakan lakukan mapping ulang setelah
+              revisi dikonfirmasi.
+            </p>
+            <div>
+              <label className={labelClasses} htmlFor="revision-hook">
+                Hook
+              </label>
+              <textarea
+                id="revision-hook"
+                rows={2}
+                value={revisionForm.hook}
+                onChange={(e) => setRevisionForm((prev) => ({ ...prev, hook: e.target.value }))}
+                className={inputClasses}
+              />
+            </div>
+            <div>
+              <label className={labelClasses} htmlFor="revision-body">
+                Body
+              </label>
+              <textarea
+                id="revision-body"
+                rows={6}
+                value={revisionForm.body}
+                onChange={(e) => setRevisionForm((prev) => ({ ...prev, body: e.target.value }))}
+                className={inputClasses}
+              />
+            </div>
+            <div>
+              <label className={labelClasses} htmlFor="revision-closing">
+                Closing
+              </label>
+              <textarea
+                id="revision-closing"
+                rows={2}
+                value={revisionForm.closing}
+                onChange={(e) => setRevisionForm((prev) => ({ ...prev, closing: e.target.value }))}
+                className={inputClasses}
+              />
+            </div>
+            {revisionError && (
+              <p className="text-[11px] text-rose-300 flex items-center gap-1.5">
+                <AlertCircle className="w-3.5 h-3.5" />
+                {revisionError}
+              </p>
+            )}
+            <div className="flex items-center justify-end gap-3">
+              <Button variant="outline" size="sm" onClick={cancelRevise} disabled={revisionSaving}>
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                icon={<GitBranch className="w-3.5 h-3.5" />}
+                isLoading={revisionSaving}
+                onClick={handleRevise}
+              >
+                Save Revision
+              </Button>
+            </div>
           </CardContent>
         </Card>
       )}
@@ -953,25 +1101,45 @@ export const ScriptPanel: React.FC<ScriptPanelProps> = ({ projectId }) => {
         </CardHeader>
         <CardContent>
           {versions.length > 0 ? (
-            <div className="flex flex-wrap gap-2">
+            <div className="space-y-2">
               {versions.map((version) => {
                 const isCurrent = currentVersion?.id === version.id;
                 return (
                   <button
                     key={version.id}
                     onClick={() => openViewer(version)}
-                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                    className={`w-full text-left rounded-lg border px-3 py-2 transition-colors ${
                       isCurrent
-                        ? 'bg-indigo-500/10 border-indigo-500/40 text-indigo-300'
-                        : 'bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-600'
+                        ? 'bg-indigo-500/10 border-indigo-500/40'
+                        : 'bg-slate-950 border-slate-800 hover:border-slate-600'
                     }`}
                   >
-                    v{version.version}
-                    {isCurrent && (
-                      <span className="text-[9px] uppercase tracking-wider text-indigo-300 bg-indigo-500/20 rounded px-1">
-                        current
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`text-xs font-bold font-mono ${
+                            isCurrent ? 'text-indigo-300' : 'text-slate-300'
+                          }`}
+                        >
+                          v{version.version}
+                        </span>
+                        {isCurrent && (
+                          <span className="text-[9px] uppercase tracking-wider text-indigo-300 bg-indigo-500/20 rounded px-1.5 py-0.5">
+                            current
+                          </span>
+                        )}
+                        <span className="text-[10px] text-slate-500 flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          {formatVersionDate(version.created_at)}
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-slate-400 hidden sm:inline">
+                        {version.duration_seconds ? `${version.duration_seconds}s` : ''}
                       </span>
-                    )}
+                    </div>
+                    <p className={`text-[11px] mt-1 truncate ${isCurrent ? 'text-slate-300' : 'text-slate-500'}`}>
+                      {truncatePreview(version.hook)}
+                    </p>
                   </button>
                 );
               })}
@@ -1150,6 +1318,22 @@ function versionHistoryLabel(versions: ScriptVersion[], currentVersion: ScriptVe
   const total = versions.length;
   if (!currentVersion) return `${total} version${total === 1 ? '' : 's'}`;
   return `Version ${versions.map((v) => v.version).join(' · ')} — current is v${currentVersion.version}`;
+}
+
+function formatVersionDate(iso?: string): string {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function truncatePreview(text: string, maxLength = 90): string {
+  const clean = text.replace(/\s+/g, ' ').trim();
+  return clean.length > maxLength ? `${clean.slice(0, maxLength)}…` : clean;
 }
 
 function QualityCheckRow({ check }: { check: ScriptQualityCheck }) {

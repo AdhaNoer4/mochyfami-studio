@@ -3,11 +3,15 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Script\ReviseScriptVersionRequest;
 use App\Http\Requests\Script\StoreScriptVersionRequest;
 use App\Http\Requests\Script\UpdateCurrentScriptVersionRequest;
+use App\Http\Resources\ScriptQualityResource;
 use App\Http\Resources\ScriptResource;
 use App\Http\Resources\ScriptVersionResource;
 use App\Models\ContentProject;
+use App\Services\Script\ScriptQualityService;
+use App\Services\Script\ScriptResearchTraceabilityService;
 use App\Services\ScriptService;
 use App\Traits\ApiResponse;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -19,7 +23,9 @@ class ScriptVersionController extends Controller
     use ApiResponse;
 
     public function __construct(
-        protected ScriptService $scriptService
+        protected ScriptService $scriptService,
+        protected ScriptQualityService $qualityService,
+        protected ScriptResearchTraceabilityService $traceabilityService,
     ) {}
 
     /**
@@ -107,5 +113,39 @@ class ScriptVersionController extends Controller
             new ScriptResource($updatedScript),
             'Script current version updated successfully.'
         );
+    }
+
+    /**
+     * Revise a script version, producing a NEW immutable version.
+     *
+     * The source version may be current or historical/archived and is never
+     * mutated. Only edited fields (hook/body/closing) are replaced; the rest
+     * are inherited. The new version becomes current, the script is forced
+     * back to draft, and research-claim mappings are never copied.
+     */
+    public function revise(ReviseScriptVersionRequest $request, ContentProject $project, int $version): JsonResponse
+    {
+        try {
+            $script = $this->scriptService->getScriptOrFail($project);
+        } catch (ModelNotFoundException $e) {
+            return $this->errorResponse($e->getMessage(), null, 404);
+        }
+
+        Gate::authorize('update', $script);
+
+        try {
+            $updatedScript = $this->scriptService->createRevision($project, $version, $request->validated());
+        } catch (ModelNotFoundException $e) {
+            return $this->errorResponse($e->getMessage(), null, 404);
+        }
+
+        $newVersion = $updatedScript->currentVersion;
+
+        return $this->successResponse([
+            'script' => new ScriptResource($updatedScript),
+            'version' => new ScriptVersionResource($newVersion),
+            'quality' => new ScriptQualityResource($updatedScript, $this->qualityService->evaluateScript($updatedScript)),
+            'traceability' => $this->traceabilityService->summary($newVersion),
+        ], 'Script version revised successfully.', 201);
     }
 }

@@ -6,6 +6,8 @@ import {
   ScriptGenerationRequest,
   ScriptGenerationResult,
   ScriptQualityResult,
+  ScriptRevisionRequest,
+  ScriptRevisionResult,
   ScriptStatus,
   ScriptTraceabilityData,
   ScriptVersion,
@@ -65,6 +67,18 @@ export const scriptService = {
   async updateCurrentVersion(projectId: number, data: ScriptFormData): Promise<Script> {
     const response = await apiClient.patch<ApiResponse<Script>>(
       `/projects/${projectId}/script/versions/current`,
+      data,
+    );
+    return response.data.data;
+  },
+
+  async reviseVersion(
+    projectId: number,
+    version: number,
+    data: ScriptRevisionRequest,
+  ): Promise<ScriptRevisionResult> {
+    const response = await apiClient.post<ApiResponse<ScriptRevisionResult>>(
+      `/projects/${projectId}/script/versions/${version}/revise`,
       data,
     );
     return response.data.data;
