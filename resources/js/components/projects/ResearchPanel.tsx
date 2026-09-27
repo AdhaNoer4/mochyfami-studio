@@ -12,6 +12,7 @@ import {
   ResearchPipeline,
   ResearchQuality,
   ResearchReport,
+  ResearchScriptContext,
   ResearchSource,
   ResearchStatus,
   ResearchTransition,
@@ -137,6 +138,10 @@ export const ResearchPanel: React.FC<ResearchPanelProps> = ({ projectId }) => {
   const [pipelineLoading, setPipelineLoading] = useState<boolean>(true);
   const [pipelineError, setPipelineError] = useState<string | null>(null);
 
+  const [scriptContext, setScriptContext] = useState<ResearchScriptContext | null>(null);
+  const [scriptContextLoading, setScriptContextLoading] = useState<boolean>(true);
+  const [scriptContextError, setScriptContextError] = useState<string | null>(null);
+
   const [genTopic, setGenTopic] = useState<string>('');
   const [genQuestion, setGenQuestion] = useState<string>('');
   const [genContext, setGenContext] = useState<string>('');
@@ -203,19 +208,33 @@ export const ResearchPanel: React.FC<ResearchPanelProps> = ({ projectId }) => {
     }
   }, [projectId]);
 
+  const refreshScriptContext = useCallback(async () => {
+    try {
+      const result = await researchService.getScriptContext(projectId);
+      setScriptContext(result);
+      setScriptContextError(null);
+    } catch (err) {
+      setScriptContext(null);
+      setScriptContextError(getApiErrorMessage(err, 'Unable to load script context.'));
+    }
+  }, [projectId]);
+
   const refreshReport = useCallback(async () => {
     const data = await researchService.getResearch(projectId);
     setReport(data);
     if (data) {
       await refreshQuality();
       await refreshPipeline();
+      await refreshScriptContext();
     } else {
       setQuality(null);
       setQualityError(null);
       setPipeline(null);
       setPipelineError(null);
+      setScriptContext(null);
+      setScriptContextError(null);
     }
-  }, [projectId, refreshQuality, refreshPipeline]);
+  }, [projectId, refreshQuality, refreshPipeline, refreshScriptContext]);
 
   useEffect(() => {
     let active = true;
@@ -251,6 +270,18 @@ export const ResearchPanel: React.FC<ResearchPanelProps> = ({ projectId }) => {
               setPipelineError(getApiErrorMessage(err, 'Unable to load research pipeline.'));
             }
           }
+          try {
+            const contextResult = await researchService.getScriptContext(projectId);
+            if (active) {
+              setScriptContext(contextResult);
+              setScriptContextError(null);
+            }
+          } catch (err) {
+            if (active) {
+              setScriptContext(null);
+              setScriptContextError(getApiErrorMessage(err, 'Unable to load script context.'));
+            }
+          }
         }
       })
       .catch((err) => {
@@ -261,6 +292,7 @@ export const ResearchPanel: React.FC<ResearchPanelProps> = ({ projectId }) => {
           setLoading(false);
           setQualityLoading(false);
           setPipelineLoading(false);
+          setScriptContextLoading(false);
         }
       });
 
@@ -277,6 +309,7 @@ export const ResearchPanel: React.FC<ResearchPanelProps> = ({ projectId }) => {
       setReport(created);
       await refreshQuality();
       await refreshPipeline();
+      await refreshScriptContext();
       setMessage('Research report created successfully.');
     } catch (err) {
       setPanelError(getApiErrorMessage(err, 'Unable to create research report.'));
@@ -295,6 +328,8 @@ export const ResearchPanel: React.FC<ResearchPanelProps> = ({ projectId }) => {
       setQualityError(null);
       setPipeline(null);
       setPipelineError(null);
+      setScriptContext(null);
+      setScriptContextError(null);
       setConfirmDeleteResearch(false);
       setMessage('Research report deleted successfully.');
     } catch (err) {
@@ -929,6 +964,168 @@ export const ResearchPanel: React.FC<ResearchPanelProps> = ({ projectId }) => {
                 <p className="text-xs text-emerald-300 flex items-center gap-1.5">
                   <CheckCircle2 className="w-4 h-4" /> No blockers or warnings — research is ready to proceed.
                 </p>
+              )}
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
+
+      {/* SCRIPT CONTEXT */}
+      <Card variant="default">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <ListChecks className="w-4 h-4 text-violet-400" />
+              <div>
+                <CardTitle className="text-base font-bold text-white">Script Context</CardTitle>
+                <CardDescription>
+                  The authoritative claim context injected into the script generator — only verified material
+                  becomes a hard fact.
+                </CardDescription>
+              </div>
+            </div>
+            {scriptContext && (
+              <div className="flex items-center gap-2">
+                <Badge variant={scriptContext.pipeline.ready_for_script ? 'emerald' : 'amber'}>
+                  {scriptContext.pipeline.ready_for_script ? 'READY FOR SCRIPT' : 'NOT READY'}
+                </Badge>
+                <span className="text-xs font-bold text-slate-200">
+                  {scriptContext.report.counts.usable_claims}/{scriptContext.report.counts.total_claims} usable
+                </span>
+              </div>
+            )}
+          </div>
+        </CardHeader>
+
+        <CardContent>
+          {scriptContextLoading ? (
+            <div className="space-y-2">
+              <div className="h-16 bg-slate-900 rounded-xl animate-pulse" />
+              <div className="h-20 bg-slate-900 rounded-xl animate-pulse" />
+            </div>
+          ) : scriptContextError ? (
+            <p className="text-xs text-rose-300 flex items-center gap-1.5">
+              <AlertCircle className="w-4 h-4" /> {scriptContextError}
+            </p>
+          ) : scriptContext ? (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div className="p-3 rounded-lg bg-slate-950 border border-slate-800">
+                  <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block">
+                    Usable
+                  </span>
+                  <span className="text-lg font-bold text-emerald-400">
+                    {scriptContext.report.counts.usable_claims}
+                  </span>
+                </div>
+                <div className="p-3 rounded-lg bg-slate-950 border border-slate-800">
+                  <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block">
+                    Needs Check
+                  </span>
+                  <span className="text-lg font-bold text-amber-400">
+                    {scriptContext.report.counts.claims_requiring_verification}
+                  </span>
+                </div>
+                <div className="p-3 rounded-lg bg-slate-950 border border-slate-800">
+                  <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block">
+                    Contradicted
+                  </span>
+                  <span className="text-lg font-bold text-rose-400">
+                    {scriptContext.report.counts.contradicted_claims}
+                  </span>
+                </div>
+                <div className="p-3 rounded-lg bg-slate-950 border border-slate-800">
+                  <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block">
+                    Unsupported
+                  </span>
+                  <span className="text-lg font-bold text-slate-400">
+                    {scriptContext.report.counts.unsupported_claims}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <Badge size="sm" variant="indigo">
+                  {scriptContext.report.counts.evidence_backed_claims} with evidence
+                </Badge>
+                <Badge size="sm" variant={scriptContext.quality.ready ? 'emerald' : 'rose'}>
+                  Quality {scriptContext.quality.ready ? 'ready' : 'not ready'}
+                </Badge>
+                <Badge size="sm" variant="slate">
+                  Pipeline {scriptContext.pipeline.progress}% · {scriptContext.pipeline.stage_label}
+                </Badge>
+              </div>
+
+              {scriptContext.usable_claims.length > 0 && (
+                <div className="space-y-2">
+                  <span className="text-[11px] font-semibold text-emerald-400 uppercase tracking-wider block">
+                    Usable — safe to state as fact
+                  </span>
+                  {scriptContext.usable_claims.map((claim) => (
+                    <div
+                      key={`usable-${claim.id}`}
+                      className="flex items-start gap-2 p-2.5 rounded-lg bg-emerald-950/40 border border-emerald-800/50 text-emerald-200 text-xs"
+                    >
+                      <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 text-emerald-400" />
+                      <div className="min-w-0">
+                        <p className="font-semibold">{claim.claim}</p>
+                        <p className="text-emerald-400/80 text-[10px] mt-0.5">
+                          {claim.sources.length} source{claim.sources.length === 1 ? '' : 's'} ·{' '}
+                          {claim.sources.map((source) => source.domain).join(', ')}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {scriptContext.claims_requiring_verification.length > 0 && (
+                <div className="space-y-2">
+                  <span className="text-[11px] font-semibold text-amber-400 uppercase tracking-wider block">
+                    Requires verification — do not state as fact
+                  </span>
+                  {scriptContext.claims_requiring_verification.map((claim) => (
+                    <div
+                      key={`verify-${claim.id}`}
+                      className="flex items-start gap-2 p-2.5 rounded-lg bg-amber-950/40 border border-amber-800/50 text-amber-200 text-xs"
+                    >
+                      <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />
+                      <p className="font-semibold">{claim.claim}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {[...scriptContext.contradicted_claims, ...scriptContext.unsupported_claims].length > 0 && (
+                <div className="space-y-2">
+                  <span className="text-[11px] font-semibold text-rose-400 uppercase tracking-wider block">
+                    Not usable — contradicted or without evidence
+                  </span>
+                  {[...scriptContext.contradicted_claims, ...scriptContext.unsupported_claims].map((claim) => (
+                    <div
+                      key={`blocked-${claim.id}`}
+                      className="flex items-start gap-2 p-2.5 rounded-lg bg-rose-950/40 border border-rose-800/50 text-rose-300 text-xs"
+                    >
+                      <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5" />
+                      <div className="min-w-0">
+                        <p className="font-semibold">{claim.claim}</p>
+                        <p className="text-rose-400/80 text-[10px] mt-0.5 uppercase tracking-wide">
+                          {claim.classification}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {scriptContext.quality.blockers.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {scriptContext.quality.blockers.map((blocker, index) => (
+                    <Badge key={`blocker-${blocker.code}-${index}`} size="sm" variant="rose">
+                      {blocker.code}
+                    </Badge>
+                  ))}
+                </div>
               )}
             </div>
           ) : null}

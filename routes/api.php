@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\V1\ResearchDiscoveryController;
 use App\Http\Controllers\Api\V1\ResearchGenerationController;
 use App\Http\Controllers\Api\V1\ResearchPipelineController;
 use App\Http\Controllers\Api\V1\ResearchQualityController;
+use App\Http\Controllers\Api\V1\ResearchScriptContextController;
 use App\Http\Controllers\Api\V1\ResearchSourceController;
 use App\Http\Controllers\Api\V1\ScriptController;
 use App\Http\Controllers\Api\V1\ScriptGenerationController;
@@ -51,6 +52,8 @@ Route::prefix('v1')->group(function () {
             Route::get('pipeline', [ResearchPipelineController::class, 'show']);
 
             Route::get('quality', [ResearchQualityController::class, 'show']);
+
+            Route::get('script-context', [ResearchScriptContextController::class, 'show']);
 
             Route::post('discover', [ResearchDiscoveryController::class, 'discover']);
 

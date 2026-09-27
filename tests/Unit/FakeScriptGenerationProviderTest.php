@@ -69,4 +69,113 @@ class FakeScriptGenerationProviderTest extends TestCase
 
         $this->assertTrue(true);
     }
+
+    public function test_output_surfaces_usable_claim_from_research_context(): void
+    {
+        $request = new ScriptGenerationRequest(
+            topic: 'Kenapa kucing suka kardus?',
+            researchContext: [
+                'usable_claims' => [[
+                    'id' => 11,
+                    'claim' => 'Kucing suka kardus karena terasa aman.',
+                    'importance' => 'high',
+                    'status' => 'supported',
+                    'classification' => 'usable',
+                    'has_evidence' => true,
+                    'sources' => [
+                        ['id' => 1, 'title' => 'Sumber A', 'domain' => 'cats.example', 'url' => 'https://cats.example/a', 'source_type' => 'article'],
+                        ['id' => 2, 'title' => 'Sumber B', 'domain' => 'felines.example', 'url' => 'https://felines.example/b', 'source_type' => 'news'],
+                    ],
+                ]],
+            ],
+        );
+
+        $response = (new FakeScriptGenerationProvider)->generate($request);
+
+        $this->assertStringContainsString(
+            'Bahan riset terverifikasi: Kucing suka kardus karena terasa aman. (didukung oleh 2 sumber).',
+            $response->body
+        );
+    }
+
+    public function test_unverified_claims_are_never_phrased_as_verified_material(): void
+    {
+        $unverifiedText = 'Kucing suka kardus klaim belum diverifikasi.';
+
+        $request = new ScriptGenerationRequest(
+            topic: 'Kenapa kucing suka kardus?',
+            importantClaims: [$unverifiedText],
+            researchContext: [
+                'usable_claims' => [],
+                'claims_requiring_verification' => [[
+                    'id' => 1,
+                    'claim' => $unverifiedText,
+                    'importance' => 'low',
+                    'status' => 'unverified',
+                    'classification' => 'requires_verification',
+                    'has_evidence' => false,
+                    'sources' => [],
+                ]],
+            ],
+        );
+
+        $response = (new FakeScriptGenerationProvider)->generate($request);
+
+        $this->assertStringContainsString($unverifiedText, $response->body);
+        $this->assertStringNotContainsString('Bahan riset terverifikasi', $response->body);
+    }
+
+    public function test_research_context_surfaces_deterministically(): void
+    {
+        $request = new ScriptGenerationRequest(
+            topic: 'Kenapa kucing suka kardus?',
+            researchContext: [
+                'usable_claims' => [[
+                    'id' => 11,
+                    'claim' => 'Kucing suka kardus karena terasa aman.',
+                    'importance' => 'high',
+                    'status' => 'supported',
+                    'classification' => 'usable',
+                    'has_evidence' => true,
+                    'sources' => [
+                        ['id' => 1, 'title' => 'Sumber A', 'domain' => 'cats.example', 'url' => 'https://cats.example/a', 'source_type' => 'article'],
+                    ],
+                ]],
+            ],
+        );
+
+        $provider = new FakeScriptGenerationProvider;
+        $first = $provider->generate($request);
+        $second = $provider->generate($request);
+
+        $this->assertSame($first->toArray(), $second->toArray());
+    }
+
+    public function test_english_surfaces_usable_claim_in_english(): void
+    {
+        $request = new ScriptGenerationRequest(
+            topic: 'Why do cats purr?',
+            language: 'en',
+            researchContext: [
+                'usable_claims' => [[
+                    'id' => 11,
+                    'claim' => 'Cats purr to soothe themselves.',
+                    'importance' => 'high',
+                    'status' => 'supported',
+                    'classification' => 'usable',
+                    'has_evidence' => true,
+                    'sources' => [
+                        ['id' => 1, 'title' => 'Vet Journal', 'domain' => 'vet.example', 'url' => 'https://vet.example/a', 'source_type' => 'academic'],
+                    ],
+                ]],
+            ],
+        );
+
+        $response = (new FakeScriptGenerationProvider)->generate($request);
+
+        $this->assertStringContainsString(
+            'Verified research material: Cats purr to soothe themselves. (backed by 1 source).',
+            $response->body
+        );
+    }
 }

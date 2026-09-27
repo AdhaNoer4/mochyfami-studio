@@ -5,6 +5,7 @@ import { Button } from '../ui/Button';
 import { getApiErrorMessage, researchService } from '../../services/researchService';
 import { scriptService } from '../../services/scriptService';
 import {
+  ResearchScriptContext,
   Script,
   ScriptFormData,
   ScriptGenerationRequest,
@@ -135,6 +136,10 @@ export const ScriptPanel: React.FC<ScriptPanelProps> = ({ projectId }) => {
   const [aiError, setAiError] = useState<string | null>(null);
   const [confirmGenerate, setConfirmGenerate] = useState<boolean>(false);
 
+  const [aiContext, setAiContext] = useState<ResearchScriptContext | null>(null);
+  const [aiContextLoading, setAiContextLoading] = useState<boolean>(true);
+  const [aiContextError, setAiContextError] = useState<string | null>(null);
+
   const refreshReadiness = useCallback(async () => {
     try {
       const pipeline = await researchService.getPipeline(projectId);
@@ -159,14 +164,28 @@ export const ScriptPanel: React.FC<ScriptPanelProps> = ({ projectId }) => {
     }
   }, [projectId]);
 
+  const refreshAiContext = useCallback(async () => {
+    try {
+      const result = await researchService.getScriptContext(projectId);
+      setAiContext(result);
+      setAiContextError(null);
+    } catch (err) {
+      setAiContext(null);
+      setAiContextError(getApiErrorMessage(err, 'Unable to load script context.'));
+    }
+  }, [projectId]);
+
   useEffect(() => {
     let active = true;
     setLoading(true);
     setPanelError(null);
     setReadinessLoading(true);
 
-    Promise.all([scriptService.getScript(projectId), refreshReadiness()])
-      .then(async ([data]) => {
+    Promise.all([
+      scriptService.getScript(projectId),
+      refreshReadiness(),
+      refreshAiContext(),
+    ]).then(async ([data]) => {
         if (!active) return;
         setScript(data);
         if (data) {
@@ -200,13 +219,14 @@ export const ScriptPanel: React.FC<ScriptPanelProps> = ({ projectId }) => {
           setReadinessLoading(false);
           setVersionsLoading(false);
           setQualityLoading(false);
+          setAiContextLoading(false);
         }
       });
 
     return () => {
       active = false;
     };
-  }, [projectId, refreshReadiness]);
+  }, [projectId, refreshReadiness, refreshAiContext]);
 
   const buildPayload = (): ScriptFormData => ({
     title: form.title.trim() || null,
@@ -847,6 +867,57 @@ export const ScriptPanel: React.FC<ScriptPanelProps> = ({ projectId }) => {
               <span>{aiError}</span>
             </div>
           )}
+
+          {/* RESEARCH CONTEXT SUMMARY */}
+          {aiContextLoading ? (
+            <div className="h-12 bg-slate-900 rounded-lg animate-pulse" />
+          ) : aiContextError ? (
+            <div className="flex items-start gap-2 p-3 rounded-lg bg-rose-950/40 border border-rose-800/50 text-rose-300 text-xs">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>{aiContextError}</span>
+            </div>
+          ) : aiContext ? (
+            aiContext.pipeline.ready_for_script ? (
+              <div className="flex items-start gap-2 p-3 rounded-lg bg-emerald-950/40 border border-emerald-800/50 text-emerald-300 text-xs">
+                <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 text-emerald-400" />
+                <div className="space-y-0.5">
+                  <p className="font-semibold text-emerald-200">
+                    Research is ready — {aiContext.report.counts.usable_claims} verified claim
+                    {aiContext.report.counts.usable_claims === 1 ? '' : 's'} available as usable context.
+                  </p>
+                  {aiContext.report.counts.claims_requiring_verification > 0 && (
+                    <p className="text-emerald-300/80">
+                      {aiContext.report.counts.claims_requiring_verification} unverified claim
+                      {aiContext.report.counts.claims_requiring_verification === 1 ? '' : 's'} will not be phrased as fact.
+                    </p>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-950/40 border border-amber-800/50 text-amber-300 text-xs">
+                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />
+                <div className="space-y-0.5">
+                  <p className="font-semibold text-amber-200">
+                    Research is not ready — generated output skips verification safeguards.
+                  </p>
+                  <p className="text-amber-300/80">
+                    Only {aiContext.report.counts.usable_claims} of {aiContext.report.counts.total_claims} claims are
+                    usable. {aiContext.report.counts.contradicted_claims} contradicted,{' '}
+                    {aiContext.report.counts.claims_requiring_verification} awaiting verification.
+                  </p>
+                  {aiContext.quality.blockers.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {aiContext.quality.blockers.map((blocker, index) => (
+                        <Badge key={`ctx-blocker-${blocker.code}-${index}`} size="sm" variant="rose">
+                          {blocker.code}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )
+          ) : null}
 
           <div className="flex items-center justify-end gap-3">
             <Button variant="outline" size="sm" onClick={() => setAiForm(emptyAiForm())} disabled={aiGenerating}>

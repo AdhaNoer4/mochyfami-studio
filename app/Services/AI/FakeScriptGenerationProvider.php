@@ -29,7 +29,13 @@ class FakeScriptGenerationProvider implements ScriptGenerationProvider
             model: null,
             title: $this->title($topic),
             hook: $this->hook($topic, $isIndonesian),
-            body: $this->body($topic, $request->importantClaims, $request->hookStyle, $isIndonesian),
+            body: $this->body(
+                $topic,
+                $request->importantClaims,
+                $request->hookStyle,
+                $isIndonesian,
+                $request->researchContext['usable_claims'] ?? []
+            ),
             closing: $this->closing($topic, $isIndonesian),
             durationSeconds: $request->targetDurationSeconds,
             notes: 'Draft deterministik dari FakeScriptGenerationProvider; hanya untuk uji dan pengembangan lokal.',
@@ -50,9 +56,15 @@ class FakeScriptGenerationProvider implements ScriptGenerationProvider
 
     /**
      * @param  array<int, string>  $importantClaims
+     * @param  array<int, array{claim: string, sources?: array<int, mixed>}>  $usableClaims
      */
-    private function body(string $topic, array $importantClaims, ?string $hookStyle, bool $isIndonesian): string
-    {
+    private function body(
+        string $topic,
+        array $importantClaims,
+        ?string $hookStyle,
+        bool $isIndonesian,
+        array $usableClaims
+    ): string {
         $lines = [];
 
         if ($hookStyle !== null && $hookStyle !== '') {
@@ -67,11 +79,39 @@ class FakeScriptGenerationProvider implements ScriptGenerationProvider
             $lines[] = $claim;
         }
 
+        $verifiedMaterial = $this->verifiedMaterialLine($usableClaims, $isIndonesian);
+
+        if ($verifiedMaterial !== '') {
+            $lines[] = $verifiedMaterial;
+        }
+
         $lines[] = $isIndonesian
             ? 'Penjelasan sederhana membuat topik ini mudah dipahami semua orang.'
             : 'A simple explanation makes this topic easy to understand for everyone.';
 
         return implode("\n", $lines);
+    }
+
+    /**
+     * Deterministically surface the first usable claim so the generated draft
+     * demonstrates that the research context flowed through to the provider.
+     * Only usable (supported + evidenced) claims are ever phrased as fact.
+     *
+     * @param  array<int, array{claim: string, sources?: array<int, mixed>}>  $usableClaims
+     */
+    private function verifiedMaterialLine(array $usableClaims, bool $isIndonesian): string
+    {
+        if ($usableClaims === []) {
+            return '';
+        }
+
+        $first = $usableClaims[0];
+        $evidenceCount = count($first['sources'] ?? []);
+        $sourceWord = $isIndonesian ? 'sumber' : ($evidenceCount === 1 ? 'source' : 'sources');
+
+        return $isIndonesian
+            ? "Bahan riset terverifikasi: {$first['claim']} (didukung oleh {$evidenceCount} sumber)."
+            : "Verified research material: {$first['claim']} (backed by {$evidenceCount} {$sourceWord}).";
     }
 
     private function closing(string $topic, bool $isIndonesian): string

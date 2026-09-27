@@ -10,6 +10,7 @@ import {
   ResearchPipeline,
   ResearchQuality,
   ResearchReport,
+  ResearchScriptContext,
   ResearchSource,
   ResearchStatus,
   SearchResponse,
@@ -135,6 +136,13 @@ export const researchService = {
   async getPipeline(projectId: number): Promise<ResearchPipeline> {
     const response = await apiClient.get<ApiResponse<ResearchPipeline>>(
       `/projects/${projectId}/research/pipeline`,
+    );
+    return response.data.data;
+  },
+
+  async getScriptContext(projectId: number): Promise<ResearchScriptContext> {
+    const response = await apiClient.get<ApiResponse<ResearchScriptContext>>(
+      `/projects/${projectId}/research/script-context`,
     );
     return response.data.data;
   },

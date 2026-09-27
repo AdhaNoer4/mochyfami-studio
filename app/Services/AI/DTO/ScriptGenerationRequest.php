@@ -53,7 +53,9 @@ class ScriptGenerationRequest
     public readonly array $importantClaims;
 
     /**
-     * @var array{research_ready: bool, claims: array<int, array{id: int, importance: string, status: string, claim: string}>}
+     * Authoritative research-to-script context (see ResearchToScriptContext).
+     *
+     * @var array<string, mixed>
      */
     public readonly array $researchContext;
 

@@ -445,6 +445,70 @@ export interface ResearchPipeline {
   summary: ResearchPipelineSummary;
 }
 
+export type ResearchClaimClassification = 'usable' | 'requires_verification' | 'contradicted' | 'unsupported';
+
+export interface ResearchScriptContextSource {
+  id: number;
+  title: string;
+  domain: string;
+  url: string;
+  source_type: string;
+}
+
+export interface ResearchScriptContextClaim {
+  id: number;
+  claim: string;
+  importance: ResearchClaimImportance;
+  status: ResearchClaimStatus;
+  classification: ResearchClaimClassification;
+  has_evidence: boolean;
+  sources: ResearchScriptContextSource[];
+}
+
+export interface ResearchScriptContextCounts {
+  total_claims: number;
+  usable_claims: number;
+  claims_requiring_verification: number;
+  contradicted_claims: number;
+  unsupported_claims: number;
+  evidence_backed_claims: number;
+}
+
+export interface ResearchScriptContextReport {
+  id: number;
+  summary: string | null;
+  status: ResearchStatus;
+  quality_ready: boolean;
+  counts: ResearchScriptContextCounts;
+}
+
+export interface ResearchScriptContextQuality {
+  ready: boolean;
+  score: number;
+  summary: ResearchQualitySummary;
+  blockers: ResearchQualityIssue[];
+  warnings: ResearchQualityIssue[];
+}
+
+export interface ResearchScriptContextPipeline {
+  stage: string;
+  stage_label: string;
+  progress: number;
+  ready_for_script: boolean;
+  next_actions: PipelineAction[];
+}
+
+export interface ResearchScriptContext {
+  report: ResearchScriptContextReport;
+  claims: ResearchScriptContextClaim[];
+  usable_claims: ResearchScriptContextClaim[];
+  claims_requiring_verification: ResearchScriptContextClaim[];
+  contradicted_claims: ResearchScriptContextClaim[];
+  unsupported_claims: ResearchScriptContextClaim[];
+  quality: ResearchScriptContextQuality;
+  pipeline: ResearchScriptContextPipeline;
+}
+
 export type ScriptStatus = 'draft' | 'review' | 'approved' | 'archived';
 
 export interface ScriptTransition {

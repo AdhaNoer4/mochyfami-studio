@@ -15,6 +15,7 @@ use App\Services\AI\DTO\ScriptGenerationRequest;
 use App\Services\AI\DTO\ScriptGenerationResponse;
 use App\Services\AI\Prompt\MochyFamiScriptProfile;
 use App\Services\AI\ScriptGenerationProviderRegistry;
+use App\Services\Research\ResearchToScriptContextService;
 use App\Services\ResearchQualityService;
 use App\Services\ScriptService;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -43,6 +44,7 @@ class ScriptGenerationService
         protected ScriptGenerationProviderRegistry $registry,
         protected ResearchQualityService $researchQualityService,
         protected ScriptQualityService $scriptQualityService,
+        protected ResearchToScriptContextService $researchToScriptContextService,
     ) {}
 
     /**
@@ -91,15 +93,7 @@ class ScriptGenerationService
             hookStyle: $input['hook_style'] ?? null,
             instructions: $input['instructions'] ?? null,
             importantClaims: $importantClaims,
-            researchContext: [
-                'research_ready' => true,
-                'claims' => $claimRows->map(fn ($claim) => [
-                    'id' => $claim->id,
-                    'importance' => $claim->importance->value,
-                    'status' => $claim->status->value,
-                    'claim' => $claim->claim,
-                ])->values()->all(),
-            ],
+            researchContext: $this->researchToScriptContextService->build($report)->toArray(),
             promptProfile: MochyFamiScriptProfile::NAME,
         );
 
