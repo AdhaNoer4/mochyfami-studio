@@ -7,6 +7,7 @@ import { scriptService } from '../../services/scriptService';
 import {
   Script,
   ScriptFormData,
+  ScriptGenerationRequest,
   ScriptQualityCheck,
   ScriptQualityResult,
   ScriptStatus,
@@ -26,6 +27,7 @@ import {
   Plus,
   Save,
   ShieldCheck,
+  Sparkles,
   Trash2,
   X,
   XCircle,
@@ -51,6 +53,28 @@ const emptyForm = (): ScriptFormState => ({
   closing: '',
   duration_seconds: '',
   notes: '',
+});
+
+interface AiFormState {
+  topic: string;
+  language: string;
+  tone: string;
+  format: string;
+  duration_seconds: string;
+  hook_style: string;
+  instructions: string;
+  provider: string;
+}
+
+const emptyAiForm = (): AiFormState => ({
+  topic: '',
+  language: 'id',
+  tone: 'casual',
+  format: 'educational',
+  duration_seconds: '30',
+  hook_style: '',
+  instructions: '',
+  provider: 'fake',
 });
 
 const toFormState = (version: ScriptVersion | null): ScriptFormState => ({
@@ -105,6 +129,11 @@ export const ScriptPanel: React.FC<ScriptPanelProps> = ({ projectId }) => {
   const [quality, setQuality] = useState<ScriptQualityResult | null>(null);
   const [qualityLoading, setQualityLoading] = useState<boolean>(true);
   const [qualityError, setQualityError] = useState<string | null>(null);
+
+  const [aiForm, setAiForm] = useState<AiFormState>(emptyAiForm());
+  const [aiGenerating, setAiGenerating] = useState<boolean>(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [confirmGenerate, setConfirmGenerate] = useState<boolean>(false);
 
   const refreshReadiness = useCallback(async () => {
     try {
@@ -262,6 +291,40 @@ export const ScriptPanel: React.FC<ScriptPanelProps> = ({ projectId }) => {
       setPanelError(getApiErrorMessage(err, 'Unable to update script status.'));
     } finally {
       setTransitioning(null);
+    }
+  };
+
+  const buildAiPayload = (): ScriptGenerationRequest => ({
+    provider: aiForm.provider.trim() || undefined,
+    topic: aiForm.topic.trim(),
+    language: aiForm.language.trim() || undefined,
+    tone: aiForm.tone.trim() || undefined,
+    format: aiForm.format.trim() || undefined,
+    target_duration_seconds: aiForm.duration_seconds ? Number(aiForm.duration_seconds) : undefined,
+    hook_style: aiForm.hook_style.trim() || undefined,
+    instructions: aiForm.instructions.trim() || undefined,
+  });
+
+  const handleGenerate = async () => {
+    setConfirmGenerate(false);
+    setAiGenerating(true);
+    setAiError(null);
+    setMessage(null);
+    try {
+      const result = await scriptService.generateScript(projectId, buildAiPayload());
+      setScript(result.script);
+      setViewingVersion(null);
+      setVersions(await scriptService.getVersions(projectId));
+      setQuality(result.quality);
+      setQualityError(null);
+      await refreshReadiness();
+      setMessage(
+        `AI version v${result.generated_version.version} generated. Human review is still required.`,
+      );
+    } catch (err) {
+      setAiError(getApiErrorMessage(err, 'Unable to generate the script.'));
+    } finally {
+      setAiGenerating(false);
     }
   };
 
@@ -672,6 +735,136 @@ export const ScriptPanel: React.FC<ScriptPanelProps> = ({ projectId }) => {
         </CardContent>
       </Card>
 
+      {/* AI GENERATION */}
+      <Card variant="default">
+        <CardHeader>
+          <CardTitle className="text-base font-bold text-white flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-indigo-400" />
+            Generate with AI
+            <Badge variant="indigo">{aiForm.provider}</Badge>
+          </CardTitle>
+          <CardDescription>
+            AI akan membuat versi script baru. Versi sebelumnya tidak diubah.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <label className={labelClasses}>Topic</label>
+            <input
+              className={inputClasses}
+              value={aiForm.topic}
+              onChange={(e) => setAiForm({ ...aiForm, topic: e.target.value })}
+              placeholder="Contoh: Kenapa kucing suka kardus?"
+              disabled={aiGenerating}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label className={labelClasses}>Language</label>
+              <input
+                className={inputClasses}
+                value={aiForm.language}
+                onChange={(e) => setAiForm({ ...aiForm, language: e.target.value })}
+                placeholder="id"
+                disabled={aiGenerating}
+              />
+            </div>
+            <div>
+              <label className={labelClasses}>Tone</label>
+              <input
+                className={inputClasses}
+                value={aiForm.tone}
+                onChange={(e) => setAiForm({ ...aiForm, tone: e.target.value })}
+                placeholder="casual"
+                disabled={aiGenerating}
+              />
+            </div>
+            <div>
+              <label className={labelClasses}>Format</label>
+              <input
+                className={inputClasses}
+                value={aiForm.format}
+                onChange={(e) => setAiForm({ ...aiForm, format: e.target.value })}
+                placeholder="educational"
+                disabled={aiGenerating}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label className={labelClasses}>Target Duration (seconds)</label>
+              <input
+                type="number"
+                min={1}
+                max={600}
+                className={inputClasses}
+                value={aiForm.duration_seconds}
+                onChange={(e) => setAiForm({ ...aiForm, duration_seconds: e.target.value })}
+                placeholder="30"
+                disabled={aiGenerating}
+              />
+            </div>
+            <div>
+              <label className={labelClasses}>Hook Style</label>
+              <input
+                className={inputClasses}
+                value={aiForm.hook_style}
+                onChange={(e) => setAiForm({ ...aiForm, hook_style: e.target.value })}
+                placeholder="question, story, fact"
+                disabled={aiGenerating}
+              />
+            </div>
+            <div>
+              <label className={labelClasses}>Provider</label>
+              <select
+                className={inputClasses}
+                value={aiForm.provider}
+                onChange={(e) => setAiForm({ ...aiForm, provider: e.target.value })}
+                disabled={aiGenerating}
+              >
+                <option value="fake">fake (deterministic)</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className={labelClasses}>Additional Instructions</label>
+            <textarea
+              rows={3}
+              className={inputClasses}
+              value={aiForm.instructions}
+              onChange={(e) => setAiForm({ ...aiForm, instructions: e.target.value })}
+              placeholder="Optional guidance for the provider"
+              disabled={aiGenerating}
+            />
+          </div>
+
+          {aiError && (
+            <div className="flex items-start gap-2 p-3 rounded-lg bg-rose-950/40 border border-rose-800/50 text-rose-300 text-xs">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>{aiError}</span>
+            </div>
+          )}
+
+          <div className="flex items-center justify-end gap-3">
+            <Button variant="outline" size="sm" onClick={() => setAiForm(emptyAiForm())} disabled={aiGenerating}>
+              Reset
+            </Button>
+            <Button
+              size="sm"
+              icon={<Sparkles className="w-3.5 h-3.5" />}
+              isLoading={aiGenerating}
+              disabled={!aiForm.topic.trim()}
+              onClick={() => setConfirmGenerate(true)}
+            >
+              Generate with AI
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* VERSION HISTORY */}
       <Card variant="default">
         <CardHeader>
@@ -756,6 +949,37 @@ export const ScriptPanel: React.FC<ScriptPanelProps> = ({ projectId }) => {
             </div>
             <div className="overflow-y-auto space-y-3 pr-1">
               <VersionFields version={viewingVersion} />
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* CONFIRM GENERATE MODAL */}
+      {confirmGenerate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+          <Card variant="default" className="max-w-md w-full p-6 border-slate-800 shadow-2xl">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-400">
+                <Sparkles className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white">Generate script baru?</h3>
+                <p className="text-xs text-slate-400">AI Script Generation</p>
+              </div>
+            </div>
+            <p className="text-xs text-slate-300 leading-relaxed mb-6">
+              Generate script baru dari research saat ini? Versi saat ini (
+              <span className="font-bold text-white">v{currentVersion?.version ?? '-'}</span>) tetap tidak
+              diubah; versi baru akan dibuat dan menjadi current. Human review tetap diwajibkan sebelum
+              script dianggap final.
+            </p>
+            <div className="flex items-center justify-end gap-3">
+              <Button variant="outline" size="sm" onClick={() => setConfirmGenerate(false)}>
+                Cancel
+              </Button>
+              <Button size="sm" icon={<Sparkles className="w-3.5 h-3.5" />} onClick={handleGenerate}>
+                Generate
+              </Button>
             </div>
           </Card>
         </div>

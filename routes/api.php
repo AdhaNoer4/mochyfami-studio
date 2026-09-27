@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\V1\ResearchPipelineController;
 use App\Http\Controllers\Api\V1\ResearchQualityController;
 use App\Http\Controllers\Api\V1\ResearchSourceController;
 use App\Http\Controllers\Api\V1\ScriptController;
+use App\Http\Controllers\Api\V1\ScriptGenerationController;
 use App\Http\Controllers\Api\V1\ScriptQualityController;
 use App\Http\Controllers\Api\V1\ScriptVersionController;
 use Illuminate\Support\Facades\Route;
@@ -70,6 +71,8 @@ Route::prefix('v1')->group(function () {
             Route::post('/', [ScriptController::class, 'store']);
             Route::get('/', [ScriptController::class, 'show']);
             Route::patch('/status', [ScriptController::class, 'transitionStatus']);
+
+            Route::post('generate', [ScriptGenerationController::class, 'generate']);
 
             Route::get('quality', [ScriptQualityController::class, 'show']);
 

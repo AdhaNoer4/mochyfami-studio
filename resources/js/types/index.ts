@@ -508,3 +508,31 @@ export interface ScriptQualityResult {
   checks: ScriptQualityCheck[];
   claim_alignment: ScriptClaimAlignment[];
 }
+
+export interface ScriptGenerationRequest {
+  provider?: string;
+  topic: string;
+  language?: string;
+  tone?: string;
+  format?: string;
+  target_duration_seconds?: number;
+  hook_style?: string;
+  instructions?: string;
+}
+
+export interface ScriptGenerationMetadata {
+  provider: string;
+  model: string | null;
+  prompt_profile: string;
+  prompt_version: string;
+  status: string;
+  source_version_id: number | null;
+  generated_version_id: number | null;
+}
+
+export interface ScriptGenerationResult {
+  script: Script;
+  generated_version: ScriptVersion;
+  generation: ScriptGenerationMetadata;
+  quality: ScriptQualityResult;
+}

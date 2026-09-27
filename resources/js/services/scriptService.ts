@@ -3,6 +3,8 @@ import {
   ApiResponse,
   Script,
   ScriptFormData,
+  ScriptGenerationRequest,
+  ScriptGenerationResult,
   ScriptQualityResult,
   ScriptStatus,
   ScriptVersion,
@@ -47,6 +49,14 @@ export const scriptService = {
 
   async createVersion(projectId: number, data: ScriptFormData): Promise<Script> {
     const response = await apiClient.post<ApiResponse<Script>>(`/projects/${projectId}/script/versions`, data);
+    return response.data.data;
+  },
+
+  async generateScript(projectId: number, data: ScriptGenerationRequest): Promise<ScriptGenerationResult> {
+    const response = await apiClient.post<ApiResponse<ScriptGenerationResult>>(
+      `/projects/${projectId}/script/generate`,
+      data,
+    );
     return response.data.data;
   },
 
