@@ -19,6 +19,8 @@ use App\Http\Controllers\Api\V1\ScriptGenerationController;
 use App\Http\Controllers\Api\V1\ScriptQualityController;
 use App\Http\Controllers\Api\V1\ScriptVersionController;
 use App\Http\Controllers\Api\V1\ScriptVersionResearchClaimController;
+use App\Http\Controllers\Api\V1\VisualPlanController;
+use App\Http\Controllers\Api\V1\VisualPlanItemController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
@@ -92,6 +94,18 @@ Route::prefix('v1')->group(function () {
             Route::get('versions/{version}/research-claims', [ScriptVersionResearchClaimController::class, 'index'])->whereNumber('version');
             Route::post('versions/{version}/research-claims/{claim}', [ScriptVersionResearchClaimController::class, 'store'])->whereNumber('version');
             Route::delete('versions/{version}/research-claims/{claim}', [ScriptVersionResearchClaimController::class, 'destroy'])->whereNumber('version');
+
+            Route::prefix('versions/{version}/visual-plan')->whereNumber('version')->group(function () {
+                Route::get('/', [VisualPlanController::class, 'show']);
+                Route::post('/', [VisualPlanController::class, 'store']);
+                Route::patch('/status', [VisualPlanController::class, 'transitionStatus']);
+
+                Route::get('items', [VisualPlanItemController::class, 'index']);
+                Route::post('items', [VisualPlanItemController::class, 'store']);
+                Route::patch('items/reorder', [VisualPlanItemController::class, 'reorder']);
+                Route::patch('items/{item}', [VisualPlanItemController::class, 'update'])->whereNumber('item');
+                Route::delete('items/{item}', [VisualPlanItemController::class, 'destroy'])->whereNumber('item');
+            });
         });
     });
 });

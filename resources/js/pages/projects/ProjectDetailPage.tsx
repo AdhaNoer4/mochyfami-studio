@@ -6,6 +6,7 @@ import { Button } from '../../components/ui/Button';
 import { projectService } from '../../services/projectService';
 import { ResearchPanel } from '../../components/projects/ResearchPanel';
 import { ScriptPanel } from '../../components/projects/ScriptPanel';
+import { VisualPlanPanel } from '../../components/projects/VisualPlanPanel';
 import { ContentProject, ContentProjectStatus, ProjectTransition } from '../../types';
 import {
   ArrowLeft,
@@ -49,7 +50,7 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({ projectId,
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [confirmTransition, setConfirmTransition] = useState<ProjectTransition | null>(null);
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'research' | 'script'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'research' | 'script' | 'visual-plan'>('overview');
 
   useEffect(() => {
     setLoading(true);
@@ -281,12 +282,24 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({ projectId,
         >
           Script
         </button>
+        <button
+          className={`px-4 py-2 text-xs font-semibold rounded-t-lg border-b-2 transition-colors ${
+            activeTab === 'visual-plan'
+              ? 'border-indigo-500 text-white bg-slate-800/40'
+              : 'border-transparent text-slate-400 hover:text-slate-200'
+          }`}
+          onClick={() => setActiveTab('visual-plan')}
+        >
+          Visual Plan
+        </button>
       </div>
 
       {activeTab === 'research' ? (
         <ResearchPanel projectId={project.id} />
       ) : activeTab === 'script' ? (
         <ScriptPanel projectId={project.id} />
+      ) : activeTab === 'visual-plan' ? (
+        <VisualPlanPanel projectId={project.id} />
       ) : (
         <>
       {/* Overview Metadata Card */}

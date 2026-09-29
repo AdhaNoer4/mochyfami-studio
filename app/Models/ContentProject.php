@@ -6,6 +6,7 @@ use App\Enums\ContentProjectStatus;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class ContentProject extends Model
@@ -61,5 +62,10 @@ class ContentProject extends Model
     public function script(): HasOne
     {
         return $this->hasOne(Script::class, 'content_project_id');
+    }
+
+    public function visualPlans(): HasMany
+    {
+        return $this->hasMany(VisualPlan::class, 'content_project_id');
     }
 }

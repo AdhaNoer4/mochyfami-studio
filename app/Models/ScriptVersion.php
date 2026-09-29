@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class ScriptVersion extends Model
 {
@@ -38,5 +39,10 @@ class ScriptVersion extends Model
     public function researchClaims(): BelongsToMany
     {
         return $this->belongsToMany(ResearchClaim::class, 'script_version_research_claim')->withTimestamps();
+    }
+
+    public function visualPlan(): HasOne
+    {
+        return $this->hasOne(VisualPlan::class, 'script_version_id');
     }
 }

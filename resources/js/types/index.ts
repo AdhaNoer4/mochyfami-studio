@@ -668,3 +668,74 @@ export interface ScriptTraceabilityData {
   items: ScriptVersionResearchClaim[];
   traceability: ScriptTraceabilitySummary;
 }
+
+export type VisualPlanStatus = 'draft' | 'review' | 'approved' | 'archived';
+
+export interface VisualPlanTransition {
+  status: VisualPlanStatus;
+  label: string;
+  action: string;
+  destructive: boolean;
+}
+
+export type VisualPlanSection = 'hook' | 'body' | 'closing' | 'other';
+
+export type VisualPlanItemType =
+  | 'animal_clip'
+  | 'stock_video'
+  | 'photo'
+  | 'screen_recording'
+  | 'graphic'
+  | 'text'
+  | 'b_roll'
+  | 'other';
+
+export interface VisualPlanItem {
+  id: number;
+  visual_plan_id: number;
+  order: number;
+  section: VisualPlanSection;
+  section_label: string;
+  narration_text: string;
+  visual_type: VisualPlanItemType;
+  visual_type_label: string;
+  visual_prompt: string;
+  duration_seconds: number;
+  notes?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface VisualPlan {
+  id: number;
+  content_project_id: number;
+  script_version_id: number;
+  status: VisualPlanStatus;
+  status_label: string;
+  allowed_transitions: VisualPlanTransition[];
+  title?: string | null;
+  notes?: string | null;
+  items: VisualPlanItem[];
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface VisualPlanFormData {
+  title?: string | null;
+  notes?: string | null;
+  create_from_script?: boolean;
+}
+
+export interface VisualPlanItemFormData {
+  section: VisualPlanSection;
+  narration_text: string;
+  visual_type: VisualPlanItemType;
+  visual_prompt: string;
+  duration_seconds: number;
+  notes?: string | null;
+}
+
+export interface VisualPlanItemOrder {
+  id: number;
+  order: number;
+}
