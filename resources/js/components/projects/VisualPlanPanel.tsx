@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
+import { QualityMetric } from '../ui/QualityMetric';
 import { getApiErrorMessage } from '../../services/researchService';
 import { scriptService } from '../../services/scriptService';
 import { visualPlanService } from '../../services/visualPlanService';
@@ -19,18 +20,22 @@ import {
   VisualPlanItem,
   VisualPlanItemFormData,
   VisualPlanItemType,
+  VisualPlanQualityIssue,
+  VisualPlanQualityResult,
   VisualPlanSection,
   VisualPlanStatus,
   VisualPlanTransition,
 } from '../../types';
 import {
   AlertCircle,
+  AlertTriangle,
   ArrowDown,
   ArrowUp,
   CheckCircle2,
   Clapperboard,
   Clock,
   Download,
+  Gauge,
   Layers,
   Lightbulb,
   Package,
@@ -42,6 +47,7 @@ import {
   Trash2,
   Wand2,
   X,
+  XCircle,
 } from 'lucide-react';
 
 interface VisualPlanPanelProps {
@@ -196,6 +202,9 @@ export const VisualPlanPanel: React.FC<VisualPlanPanelProps> = ({ projectId }) =
   const [generating, setGenerating] = useState<boolean>(false);
   const [confirmGenerate, setConfirmGenerate] = useState<boolean>(false);
 
+  const [readiness, setReadiness] = useState<VisualPlanQualityResult | null>(null);
+  const [readinessLoading, setReadinessLoading] = useState<boolean>(false);
+
   const version = script?.current_version?.version ?? null;
   const scriptReviewable = script?.status === 'review' || script?.status === 'approved';
   const scriptReady = script !== null && scriptReviewable && quality?.ready === true;
@@ -203,6 +212,29 @@ export const VisualPlanPanel: React.FC<VisualPlanPanelProps> = ({ projectId }) =
   const refreshItems = async (versionNumber: number) => {
     const data = await visualPlanService.listItems(projectId, versionNumber);
     setItems(data);
+  };
+
+  /**
+   * Re-read the readiness gate. It is a separate read-only endpoint, so a
+   * failure here must never look like a failed mutation to the user.
+   */
+  const refreshReadiness = async (versionNumber: number) => {
+    setReadinessLoading(true);
+    try {
+      setReadiness(await visualPlanService.getQuality(projectId, versionNumber));
+    } catch {
+      setReadiness(null);
+    } finally {
+      setReadinessLoading(false);
+    }
+  };
+
+  /**
+   * Every mutation funnels through here so the gate never drifts from the
+   * items and requirements it describes.
+   */
+  const refreshPlanData = async (versionNumber: number) => {
+    await Promise.all([refreshItems(versionNumber), refreshReadiness(versionNumber)]);
   };
 
   useEffect(() => {
@@ -220,6 +252,7 @@ export const VisualPlanPanel: React.FC<VisualPlanPanelProps> = ({ projectId }) =
           setPlan(null);
           setItems([]);
           setQuality(null);
+          setReadiness(null);
           return;
         }
 
@@ -232,7 +265,19 @@ export const VisualPlanPanel: React.FC<VisualPlanPanelProps> = ({ projectId }) =
 
         setPlan(planData);
         setQuality(qualityData);
-        setItems(planData ? await visualPlanService.listItems(projectId, currentVersion) : []);
+
+        if (planData) {
+          const [itemData, readinessData] = await Promise.all([
+            visualPlanService.listItems(projectId, currentVersion),
+            visualPlanService.getQuality(projectId, currentVersion).catch(() => null),
+          ]);
+          if (!active) return;
+          setItems(itemData);
+          setReadiness(readinessData);
+        } else {
+          setItems([]);
+          setReadiness(null);
+        }
       } catch (err) {
         if (active) {
           setPanelError(getApiErrorMessage(err, 'Unable to load the visual plan.'));
@@ -257,7 +302,7 @@ export const VisualPlanPanel: React.FC<VisualPlanPanelProps> = ({ projectId }) =
         create_from_script: createFromScript,
       });
       setPlan(created);
-      setItems(await visualPlanService.listItems(projectId, version));
+      await refreshPlanData(version);
       setMessage(
         createFromScript
           ? 'Visual plan created from the script. Review each seeded item.'
@@ -277,6 +322,7 @@ export const VisualPlanPanel: React.FC<VisualPlanPanelProps> = ({ projectId }) =
     setPanelError(null);
     try {
       setPlan(await visualPlanService.transitionStatus(projectId, version, target));
+      await refreshReadiness(version);
       setConfirmTransition(null);
       setMessage('Visual plan status updated successfully.');
     } catch (err) {
@@ -325,7 +371,7 @@ export const VisualPlanPanel: React.FC<VisualPlanPanelProps> = ({ projectId }) =
       }
 
       setEditingItem(null);
-      await refreshItems(version);
+      await refreshPlanData(version);
     } catch (err) {
       setPanelError(getApiErrorMessage(err, 'Unable to save the visual plan item.'));
     } finally {
@@ -339,7 +385,7 @@ export const VisualPlanPanel: React.FC<VisualPlanPanelProps> = ({ projectId }) =
     setPanelError(null);
     try {
       await visualPlanService.deleteItem(projectId, version, item.id);
-      await refreshItems(version);
+      await refreshPlanData(version);
       setMessage('Visual plan item deleted successfully.');
     } catch (err) {
       setPanelError(getApiErrorMessage(err, 'Unable to delete the visual plan item.'));
@@ -360,7 +406,7 @@ export const VisualPlanPanel: React.FC<VisualPlanPanelProps> = ({ projectId }) =
     setPanelError(null);
     try {
       await visualPlanService.reorderItems(projectId, version, payload);
-      await refreshItems(version);
+      await refreshPlanData(version);
     } catch (err) {
       setPanelError(getApiErrorMessage(err, 'Unable to reorder the visual plan items.'));
     } finally {
@@ -416,7 +462,7 @@ export const VisualPlanPanel: React.FC<VisualPlanPanelProps> = ({ projectId }) =
       }
 
       closeRequirementForm();
-      await refreshItems(version);
+      await refreshPlanData(version);
     } catch (err) {
       setPanelError(getApiErrorMessage(err, 'Unable to save the asset requirement.'));
     } finally {
@@ -430,7 +476,7 @@ export const VisualPlanPanel: React.FC<VisualPlanPanelProps> = ({ projectId }) =
     setPanelError(null);
     try {
       await assetRequirementService.remove(projectId, version, itemId, requirementId);
-      await refreshItems(version);
+      await refreshPlanData(version);
       setMessage('Asset requirement removed.');
     } catch (err) {
       setPanelError(getApiErrorMessage(err, 'Unable to remove the asset requirement.'));
@@ -448,7 +494,7 @@ export const VisualPlanPanel: React.FC<VisualPlanPanelProps> = ({ projectId }) =
     setPanelError(null);
     try {
       await assetRequirementService.transitionStatus(projectId, version, itemId, requirementId, target);
-      await refreshItems(version);
+      await refreshPlanData(version);
       setMessage('Asset requirement status updated.');
     } catch (err) {
       setPanelError(getApiErrorMessage(err, 'Unable to update the asset requirement status.'));
@@ -465,7 +511,7 @@ export const VisualPlanPanel: React.FC<VisualPlanPanelProps> = ({ projectId }) =
     try {
       const summary = await assetRequirementService.generate(projectId, version);
       setConfirmGenerate(false);
-      await refreshItems(version);
+      await refreshPlanData(version);
       setMessage(
         `Generated ${summary.created} requirement${summary.created === 1 ? '' : 's'}. ` +
           `${summary.existing} already existed and ${summary.skipped} were skipped.`,
@@ -1154,8 +1200,112 @@ export const VisualPlanPanel: React.FC<VisualPlanPanelProps> = ({ projectId }) =
             </CardContent>
           </Card>
 
-          {/* CONFIRM GENERATION */}
-          {confirmGenerate && (
+          {/* VISUAL PRODUCTION READINESS */}
+          <Card variant="default">
+            <CardHeader>
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div>
+                  <CardTitle className="text-base font-bold text-white flex items-center gap-2">
+                    <Gauge className="w-4 h-4 text-indigo-400" />
+                    Visual Production Readiness
+                    {readiness && (
+                      <Badge variant={readiness.ready ? 'emerald' : 'rose'}>
+                        {readiness.ready ? 'READY' : 'NOT READY'}
+                      </Badge>
+                    )}
+                    {readiness && (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-300 bg-slate-950 border border-slate-800 rounded-lg px-2 py-0.5">
+                        Score {readiness.score}/100
+                      </span>
+                    )}
+                  </CardTitle>
+                  <CardDescription>
+                    Deterministic check that the plan is complete enough to source assets. It never claims an
+                    asset exists, and nothing is searched or downloaded here.
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {readinessLoading && !readiness ? (
+                <div className="h-20 bg-slate-900 rounded-xl animate-pulse" />
+              ) : !readiness ? (
+                <p className="text-xs text-slate-500">
+                  Production readiness is unavailable. Items and requirements are unaffected.
+                </p>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <QualityMetric
+                      label="Items covered"
+                      value={`${readiness.summary.items_with_requirements}/${readiness.summary.total_items}`}
+                      tone={
+                        readiness.summary.items_without_requirements > 0 ? 'rose' : 'emerald'
+                      }
+                    />
+                    <QualityMetric
+                      label="Requirements valid"
+                      value={`${readiness.summary.valid_requirements}/${readiness.summary.total_requirements}`}
+                      tone={readiness.summary.invalid_requirements > 0 ? 'rose' : 'emerald'}
+                    />
+                    <QualityMetric
+                      label="Blockers"
+                      value={String(readiness.summary.blocker_count)}
+                      tone={readiness.summary.blocker_count > 0 ? 'rose' : 'emerald'}
+                    />
+                    <QualityMetric
+                      label="Warnings"
+                      value={String(readiness.summary.warning_count)}
+                      tone={readiness.summary.warning_count > 0 ? 'amber' : 'emerald'}
+                    />
+                  </div>
+
+                  {readiness.blockers.length > 0 && (
+                    <div>
+                      <span className="block text-[11px] font-semibold text-rose-300 mb-2">
+                        Blockers · must be resolved before sourcing assets
+                      </span>
+                      <div className="space-y-1.5">
+                        {readiness.blockers.map((issue, index) => (
+                          <ReadinessIssueRow key={`${issue.code}-${index}`} issue={issue} />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {readiness.warnings.length > 0 && (
+                    <div>
+                      <span className="block text-[11px] font-semibold text-amber-300 mb-2">
+                        Warnings · worth fixing, but they do not block
+                      </span>
+                      <div className="space-y-1.5">
+                        {readiness.warnings.map((issue, index) => (
+                          <ReadinessIssueRow key={`${issue.code}-${index}`} issue={issue} />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {readiness.info.length > 0 && (
+                    <div>
+                      <span className="block text-[11px] font-semibold text-slate-400 mb-2">Notes</span>
+                      <div className="space-y-1.5">
+                        {readiness.info.map((issue, index) => (
+                          <ReadinessIssueRow key={`${issue.code}-${index}`} issue={issue} />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <p className="text-[11px] text-slate-500">
+                    Planning readiness only. Assets are not sourced, tracked, or verified by this gate.
+                  </p>
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* CONFIRM GENERATION */}          {confirmGenerate && (
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
               <Card variant="default" className="max-w-md w-full p-6 border-slate-800 shadow-2xl">
                 <div className="flex items-center gap-3 mb-4">
@@ -1230,3 +1380,24 @@ export const VisualPlanPanel: React.FC<VisualPlanPanelProps> = ({ projectId }) =
     </div>
   );
 };
+
+/**
+ * One readiness issue. Blockers and warnings only ever contain failures, so
+ * severity alone decides the icon and colour.
+ */
+function ReadinessIssueRow({ issue }: { issue: VisualPlanQualityIssue }) {
+  const tone =
+    issue.severity === 'blocker'
+      ? { icon: <XCircle className="w-3.5 h-3.5 shrink-0 text-rose-400" />, code: 'text-rose-300' }
+      : issue.severity === 'warning'
+        ? { icon: <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-amber-400" />, code: 'text-amber-300' }
+        : { icon: <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-indigo-400" />, code: 'text-slate-400' };
+
+  return (
+    <div className="flex items-center gap-2 rounded-lg border border-slate-800 bg-slate-950 px-3 py-2">
+      {tone.icon}
+      <span className={`text-[11px] font-mono font-semibold shrink-0 ${tone.code}`}>{issue.code}</span>
+      <span className="text-xs text-slate-300 min-w-0">{issue.message}</span>
+    </div>
+  );
+}

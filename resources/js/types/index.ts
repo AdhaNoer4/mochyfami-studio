@@ -791,3 +791,44 @@ export interface AssetRequirementGenerationSummary {
   existing: number;
   skipped: number;
 }
+
+export type VisualPlanQualitySeverity = 'blocker' | 'warning' | 'info';
+
+/**
+ * One readiness issue. Blockers and warnings only ever contain failures, so
+ * there is no `passed` flag: the list itself is the problem.
+ */
+export interface VisualPlanQualityIssue {
+  code: string;
+  severity: VisualPlanQualitySeverity;
+  message: string;
+  visual_plan_item_id: number | null;
+  asset_requirement_id: number | null;
+}
+
+export interface VisualPlanQualitySummary {
+  total_items: number;
+  items_with_requirements: number;
+  items_without_requirements: number;
+  total_requirements: number;
+  valid_requirements: number;
+  invalid_requirements: number;
+  pending_requirements: number;
+  searching_requirements: number;
+  fulfilled_requirements: number;
+  skipped_requirements: number;
+  blocker_count: number;
+  warning_count: number;
+}
+
+export interface VisualPlanQualityResult {
+  visual_plan_id: number;
+  script_version_id: number;
+  status: VisualPlanStatus;
+  ready: boolean;
+  score: number;
+  summary: VisualPlanQualitySummary;
+  blockers: VisualPlanQualityIssue[];
+  warnings: VisualPlanQualityIssue[];
+  info: VisualPlanQualityIssue[];
+}

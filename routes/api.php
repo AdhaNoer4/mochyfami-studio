@@ -22,6 +22,7 @@ use App\Http\Controllers\Api\V1\ScriptVersionResearchClaimController;
 use App\Http\Controllers\Api\V1\VisualPlanAssetRequirementController;
 use App\Http\Controllers\Api\V1\VisualPlanController;
 use App\Http\Controllers\Api\V1\VisualPlanItemController;
+use App\Http\Controllers\Api\V1\VisualPlanQualityController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
@@ -100,6 +101,7 @@ Route::prefix('v1')->group(function () {
                 Route::get('/', [VisualPlanController::class, 'show']);
                 Route::post('/', [VisualPlanController::class, 'store']);
                 Route::patch('/status', [VisualPlanController::class, 'transitionStatus']);
+                Route::get('quality', [VisualPlanQualityController::class, 'show']);
 
                 Route::get('items', [VisualPlanItemController::class, 'index']);
                 Route::post('items', [VisualPlanItemController::class, 'store']);

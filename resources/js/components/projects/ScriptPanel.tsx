@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
+import { QualityMetric } from '../ui/QualityMetric';
 import { getApiErrorMessage, researchService } from '../../services/researchService';
 import { scriptService } from '../../services/scriptService';
 import { ResearchTraceability } from './ResearchTraceability';
@@ -1359,30 +1360,6 @@ function QualityCheckRow({ check }: { check: ScriptQualityCheck }) {
         {check.code}
       </span>
       <span className="text-xs text-slate-300 min-w-0">{check.message}</span>
-    </div>
-  );
-}
-
-function QualityMetric({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: string;
-  tone: 'emerald' | 'rose' | 'amber' | 'indigo';
-}) {
-  const toneClasses = {
-    emerald: 'text-emerald-400',
-    rose: 'text-rose-400',
-    amber: 'text-amber-400',
-    indigo: 'text-indigo-400',
-  };
-
-  return (
-    <div className="rounded-lg border border-slate-800 bg-slate-950 px-3 py-2">
-      <span className={`block text-lg font-bold ${toneClasses[tone]}`}>{value}</span>
-      <span className="block text-[10px] uppercase tracking-wider text-slate-500">{label}</span>
     </div>
   );
 }

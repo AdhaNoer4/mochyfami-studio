@@ -6,13 +6,28 @@ import {
   VisualPlanItem,
   VisualPlanItemFormData,
   VisualPlanItemOrder,
+  VisualPlanQualityResult,
   VisualPlanStatus,
 } from '../types';
+
+const basePath = (projectId: number, version: number) =>
+  `/projects/${projectId}/script/versions/${version}/visual-plan`;
 
 export const visualPlanService = {
   async getPlan(projectId: number, version: number): Promise<VisualPlan | null> {
     const response = await apiClient.get<ApiResponse<VisualPlan | null>>(
       `/projects/${projectId}/script/versions/${version}/visual-plan`,
+    );
+    return response.data.data;
+  },
+
+  /**
+   * Evaluate the deterministic production readiness gate. Read-only: the
+   * endpoint never mutates the plan, its items, or its requirements.
+   */
+  async getQuality(projectId: number, version: number): Promise<VisualPlanQualityResult> {
+    const response = await apiClient.get<ApiResponse<VisualPlanQualityResult>>(
+      `${basePath(projectId, version)}/quality`,
     );
     return response.data.data;
   },
