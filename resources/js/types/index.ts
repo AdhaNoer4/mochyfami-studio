@@ -702,6 +702,7 @@ export interface VisualPlanItem {
   visual_prompt: string;
   duration_seconds: number;
   notes?: string | null;
+  asset_requirements?: AssetRequirement[];
   created_at?: string;
   updated_at?: string;
 }
@@ -738,4 +739,55 @@ export interface VisualPlanItemFormData {
 export interface VisualPlanItemOrder {
   id: number;
   order: number;
+}
+
+export type AssetRequirementType =
+  | 'video'
+  | 'image'
+  | 'audio'
+  | 'graphic'
+  | 'screen_recording'
+  | 'other';
+
+export type AssetRequirementStatus = 'pending' | 'searching' | 'fulfilled' | 'skipped';
+
+export type AssetRequirementAspectRatio = '9:16' | '16:9' | '1:1' | '4:5';
+
+export interface AssetRequirementTransition {
+  status: AssetRequirementStatus;
+  label: string;
+  action: string;
+  destructive: boolean;
+}
+
+export interface AssetRequirement {
+  id: number;
+  visual_plan_item_id: number;
+  requirement_type: AssetRequirementType;
+  requirement_type_label: string;
+  search_query?: string | null;
+  description: string;
+  target_duration_seconds?: number | null;
+  aspect_ratio?: AssetRequirementAspectRatio | null;
+  status: AssetRequirementStatus;
+  status_label: string;
+  allowed_transitions: AssetRequirementTransition[];
+  notes?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface AssetRequirementFormData {
+  requirement_type: AssetRequirementType;
+  search_query?: string | null;
+  description: string;
+  target_duration_seconds?: number | null;
+  aspect_ratio?: AssetRequirementAspectRatio | null;
+  notes?: string | null;
+}
+
+export interface AssetRequirementGenerationSummary {
+  created: number;
+  existing: number;
+  skipped: number;
 }

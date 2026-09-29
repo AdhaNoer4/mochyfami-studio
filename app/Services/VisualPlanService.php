@@ -138,7 +138,7 @@ class VisualPlanService
     {
         $plan = $this->getPlanOrFail($project, $versionNumber);
 
-        return $plan->items()->get();
+        return $plan->items()->with('assetRequirements')->get();
     }
 
     /**

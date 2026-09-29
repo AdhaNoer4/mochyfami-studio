@@ -19,6 +19,7 @@ use App\Http\Controllers\Api\V1\ScriptGenerationController;
 use App\Http\Controllers\Api\V1\ScriptQualityController;
 use App\Http\Controllers\Api\V1\ScriptVersionController;
 use App\Http\Controllers\Api\V1\ScriptVersionResearchClaimController;
+use App\Http\Controllers\Api\V1\VisualPlanAssetRequirementController;
 use App\Http\Controllers\Api\V1\VisualPlanController;
 use App\Http\Controllers\Api\V1\VisualPlanItemController;
 use Illuminate\Support\Facades\Route;
@@ -105,6 +106,13 @@ Route::prefix('v1')->group(function () {
                 Route::patch('items/reorder', [VisualPlanItemController::class, 'reorder']);
                 Route::patch('items/{item}', [VisualPlanItemController::class, 'update'])->whereNumber('item');
                 Route::delete('items/{item}', [VisualPlanItemController::class, 'destroy'])->whereNumber('item');
+
+                Route::post('asset-requirements/generate', [VisualPlanAssetRequirementController::class, 'generate']);
+                Route::get('items/{item}/asset-requirements', [VisualPlanAssetRequirementController::class, 'index'])->whereNumber('item');
+                Route::post('items/{item}/asset-requirements', [VisualPlanAssetRequirementController::class, 'store'])->whereNumber('item');
+                Route::patch('items/{item}/asset-requirements/{requirement}', [VisualPlanAssetRequirementController::class, 'update'])->whereNumber(['item', 'requirement']);
+                Route::delete('items/{item}/asset-requirements/{requirement}', [VisualPlanAssetRequirementController::class, 'destroy'])->whereNumber(['item', 'requirement']);
+                Route::patch('items/{item}/asset-requirements/{requirement}/status', [VisualPlanAssetRequirementController::class, 'transitionStatus'])->whereNumber(['item', 'requirement']);
             });
         });
     });

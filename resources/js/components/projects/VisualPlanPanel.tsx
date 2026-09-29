@@ -5,7 +5,14 @@ import { Button } from '../ui/Button';
 import { getApiErrorMessage } from '../../services/researchService';
 import { scriptService } from '../../services/scriptService';
 import { visualPlanService } from '../../services/visualPlanService';
+import { assetRequirementService } from '../../services/assetRequirementService';
 import {
+  AssetRequirement,
+  AssetRequirementAspectRatio,
+  AssetRequirementFormData,
+  AssetRequirementStatus,
+  AssetRequirementTransition,
+  AssetRequirementType,
   Script,
   ScriptQualityResult,
   VisualPlan,
@@ -23,14 +30,17 @@ import {
   CheckCircle2,
   Clapperboard,
   Clock,
+  Download,
   Layers,
   Lightbulb,
+  Package,
   Pencil,
   Plus,
   Save,
   ShieldCheck,
   Sparkles,
   Trash2,
+  Wand2,
   X,
 } from 'lucide-react';
 
@@ -83,6 +93,52 @@ const visualTypeOptions: { value: VisualPlanItemType; label: string }[] = [
   { value: 'other', label: 'Other' },
 ];
 
+interface RequirementFormState {
+  requirement_type: AssetRequirementType;
+  search_query: string;
+  description: string;
+  target_duration_seconds: string;
+  aspect_ratio: AssetRequirementAspectRatio | '';
+  notes: string;
+}
+
+const emptyRequirementForm = (): RequirementFormState => ({
+  requirement_type: 'video',
+  search_query: '',
+  description: '',
+  target_duration_seconds: '',
+  aspect_ratio: '9:16',
+  notes: '',
+});
+
+const toRequirementForm = (requirement: AssetRequirement): RequirementFormState => ({
+  requirement_type: requirement.requirement_type,
+  search_query: requirement.search_query ?? '',
+  description: requirement.description,
+  target_duration_seconds:
+    requirement.target_duration_seconds === null || requirement.target_duration_seconds === undefined
+      ? ''
+      : String(requirement.target_duration_seconds),
+  aspect_ratio: requirement.aspect_ratio ?? '',
+  notes: requirement.notes ?? '',
+});
+
+const requirementTypeOptions: { value: AssetRequirementType; label: string }[] = [
+  { value: 'video', label: 'Video' },
+  { value: 'image', label: 'Image' },
+  { value: 'audio', label: 'Audio' },
+  { value: 'graphic', label: 'Graphic' },
+  { value: 'screen_recording', label: 'Screen Recording' },
+  { value: 'other', label: 'Other' },
+];
+
+const aspectRatioOptions: { value: AssetRequirementAspectRatio; label: string }[] = [
+  { value: '9:16', label: '9:16 (vertical)' },
+  { value: '16:9', label: '16:9 (landscape)' },
+  { value: '1:1', label: '1:1 (square)' },
+  { value: '4:5', label: '4:5 (portrait)' },
+];
+
 const inputClasses =
   'bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 w-full';
 
@@ -98,6 +154,19 @@ function getStatusBadgeVariant(status: string) {
       return 'rose';
     default:
       return 'slate';
+  }
+}
+
+function getRequirementStatusVariant(status: AssetRequirementStatus) {
+  switch (status) {
+    case 'searching':
+      return 'violet';
+    case 'fulfilled':
+      return 'emerald';
+    case 'skipped':
+      return 'slate';
+    default:
+      return 'amber';
   }
 }
 
@@ -118,6 +187,14 @@ export const VisualPlanPanel: React.FC<VisualPlanPanelProps> = ({ projectId }) =
   const [editingItem, setEditingItem] = useState<number | 'new' | null>(null);
   const [itemForm, setItemForm] = useState<ItemFormState>(emptyItemForm());
   const [itemSaving, setItemSaving] = useState<boolean>(false);
+
+  const [editingRequirement, setEditingRequirement] = useState<number | 'new' | null>(null);
+  const [requirementItemId, setRequirementItemId] = useState<number | null>(null);
+  const [requirementForm, setRequirementForm] = useState<RequirementFormState>(emptyRequirementForm());
+  const [requirementSaving, setRequirementSaving] = useState<boolean>(false);
+  const [requirementStatusBusy, setRequirementStatusBusy] = useState<number | null>(null);
+  const [generating, setGenerating] = useState<boolean>(false);
+  const [confirmGenerate, setConfirmGenerate] = useState<boolean>(false);
 
   const version = script?.current_version?.version ?? null;
   const scriptReviewable = script?.status === 'review' || script?.status === 'approved';
@@ -291,6 +368,116 @@ export const VisualPlanPanel: React.FC<VisualPlanPanelProps> = ({ projectId }) =
     }
   };
 
+  const openNewRequirement = (item: VisualPlanItem) => {
+    setRequirementForm({
+      ...emptyRequirementForm(),
+      description: item.visual_prompt,
+      target_duration_seconds: String(item.duration_seconds),
+    });
+    setRequirementItemId(item.id);
+    setEditingRequirement('new');
+  };
+
+  const openEditRequirement = (item: VisualPlanItem, requirement: AssetRequirement) => {
+    setRequirementForm(toRequirementForm(requirement));
+    setRequirementItemId(item.id);
+    setEditingRequirement(requirement.id);
+  };
+
+  const closeRequirementForm = () => {
+    setEditingRequirement(null);
+    setRequirementItemId(null);
+  };
+
+  const handleSaveRequirement = async () => {
+    if (version === null || requirementItemId === null) return;
+
+    const payload: AssetRequirementFormData = {
+      requirement_type: requirementForm.requirement_type,
+      search_query: requirementForm.search_query.trim() || null,
+      description: requirementForm.description.trim(),
+      target_duration_seconds: requirementForm.target_duration_seconds
+        ? Number(requirementForm.target_duration_seconds)
+        : null,
+      aspect_ratio: requirementForm.aspect_ratio === '' ? null : requirementForm.aspect_ratio,
+      notes: requirementForm.notes.trim() || null,
+    };
+
+    setRequirementSaving(true);
+    setMessage(null);
+    setPanelError(null);
+    try {
+      if (editingRequirement === 'new') {
+        await assetRequirementService.create(projectId, version, requirementItemId, payload);
+        setMessage('Asset requirement added successfully.');
+      } else if (editingRequirement !== null) {
+        await assetRequirementService.update(projectId, version, requirementItemId, editingRequirement, payload);
+        setMessage('Asset requirement updated successfully.');
+      }
+
+      closeRequirementForm();
+      await refreshItems(version);
+    } catch (err) {
+      setPanelError(getApiErrorMessage(err, 'Unable to save the asset requirement.'));
+    } finally {
+      setRequirementSaving(false);
+    }
+  };
+
+  const handleDeleteRequirement = async (itemId: number, requirementId: number) => {
+    if (version === null) return;
+    setMessage(null);
+    setPanelError(null);
+    try {
+      await assetRequirementService.remove(projectId, version, itemId, requirementId);
+      await refreshItems(version);
+      setMessage('Asset requirement removed.');
+    } catch (err) {
+      setPanelError(getApiErrorMessage(err, 'Unable to remove the asset requirement.'));
+    }
+  };
+
+  const handleRequirementTransition = async (
+    itemId: number,
+    requirementId: number,
+    target: AssetRequirementStatus,
+  ) => {
+    if (version === null) return;
+    setRequirementStatusBusy(requirementId);
+    setMessage(null);
+    setPanelError(null);
+    try {
+      await assetRequirementService.transitionStatus(projectId, version, itemId, requirementId, target);
+      await refreshItems(version);
+      setMessage('Asset requirement status updated.');
+    } catch (err) {
+      setPanelError(getApiErrorMessage(err, 'Unable to update the asset requirement status.'));
+    } finally {
+      setRequirementStatusBusy(null);
+    }
+  };
+
+  const handleGenerate = async () => {
+    if (version === null) return;
+    setGenerating(true);
+    setMessage(null);
+    setPanelError(null);
+    try {
+      const summary = await assetRequirementService.generate(projectId, version);
+      setConfirmGenerate(false);
+      await refreshItems(version);
+      setMessage(
+        `Generated ${summary.created} requirement${summary.created === 1 ? '' : 's'}. ` +
+          `${summary.existing} already existed and ${summary.skipped} were skipped.`,
+      );
+    } catch (err) {
+      setConfirmGenerate(false);
+      setPanelError(getApiErrorMessage(err, 'Unable to generate asset requirements.'));
+    } finally {
+      setGenerating(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="space-y-4">
@@ -429,6 +616,265 @@ export const VisualPlanPanel: React.FC<VisualPlanPanelProps> = ({ projectId }) =
     </Card>
   );
 
+  const renderRequirementForm = (mode: 'create' | 'edit') => (
+    <Card variant="default" className="border-amber-500/30 mt-2">
+      <CardHeader>
+        <CardTitle className="text-xs font-bold text-white flex items-center gap-2">
+          {mode === 'create' ? (
+            <Plus className="w-3.5 h-3.5 text-amber-400" />
+          ) : (
+            <Pencil className="w-3.5 h-3.5 text-amber-400" />
+          )}
+          {mode === 'create' ? 'New Asset Requirement' : 'Edit Asset Requirement'}
+        </CardTitle>
+        <CardDescription>
+          Describe the media you will need for this item. Nothing is downloaded or searched here yet.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div>
+            <label className={labelClasses} htmlFor="asset-requirement-type">
+              Asset Type
+            </label>
+            <select
+              id="asset-requirement-type"
+              className={inputClasses}
+              value={requirementForm.requirement_type}
+              onChange={(e) =>
+                setRequirementForm({
+                  ...requirementForm,
+                  requirement_type: e.target.value as AssetRequirementType,
+                })
+              }
+            >
+              {requirementTypeOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className={labelClasses} htmlFor="asset-requirement-duration">
+              Target Duration (seconds)
+            </label>
+            <input
+              id="asset-requirement-duration"
+              type="number"
+              min={1}
+              max={600}
+              className={inputClasses}
+              value={requirementForm.target_duration_seconds}
+              onChange={(e) =>
+                setRequirementForm({ ...requirementForm, target_duration_seconds: e.target.value })
+              }
+            />
+          </div>
+          <div>
+            <label className={labelClasses} htmlFor="asset-requirement-aspect">
+              Aspect Ratio
+            </label>
+            <select
+              id="asset-requirement-aspect"
+              className={inputClasses}
+              value={requirementForm.aspect_ratio}
+              onChange={(e) =>
+                setRequirementForm({
+                  ...requirementForm,
+                  aspect_ratio: e.target.value as AssetRequirementAspectRatio | '',
+                })
+              }
+            >
+              <option value="">Not set</option>
+              {aspectRatioOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label className={labelClasses} htmlFor="asset-requirement-description">
+            Description
+          </label>
+          <textarea
+            id="asset-requirement-description"
+            rows={2}
+            className={inputClasses}
+            value={requirementForm.description}
+            onChange={(e) => setRequirementForm({ ...requirementForm, description: e.target.value })}
+            placeholder="What this asset must show"
+          />
+        </div>
+
+        <div>
+          <label className={labelClasses} htmlFor="asset-requirement-query">
+            Search Query
+          </label>
+          <input
+            id="asset-requirement-query"
+            className={inputClasses}
+            value={requirementForm.search_query}
+            onChange={(e) => setRequirementForm({ ...requirementForm, search_query: e.target.value })}
+            placeholder="Optional keywords to search for later"
+          />
+        </div>
+
+        <div>
+          <label className={labelClasses} htmlFor="asset-requirement-notes">
+            Notes
+          </label>
+          <input
+            id="asset-requirement-notes"
+            className={inputClasses}
+            value={requirementForm.notes}
+            onChange={(e) => setRequirementForm({ ...requirementForm, notes: e.target.value })}
+            placeholder="Optional sourcing notes"
+          />
+        </div>
+
+        <div className="flex items-center justify-end gap-3">
+          <Button
+            variant="outline"
+            size="sm"
+            icon={<X className="w-3.5 h-3.5" />}
+            onClick={closeRequirementForm}
+          >
+            Cancel
+          </Button>
+          <Button
+            size="sm"
+            icon={<Save className="w-3.5 h-3.5" />}
+            isLoading={requirementSaving}
+            onClick={handleSaveRequirement}
+          >
+            Save Requirement
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  const renderRequirementRow = (item: VisualPlanItem, requirement: AssetRequirement) => (
+    <div className="rounded-lg border border-amber-900/40 bg-amber-950/10 px-3 py-2 space-y-1.5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 space-y-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="amber">{requirement.requirement_type_label}</Badge>
+            <Badge variant={getRequirementStatusVariant(requirement.status)}>
+              {requirement.status_label}
+            </Badge>
+            {requirement.target_duration_seconds !== null &&
+              requirement.target_duration_seconds !== undefined && (
+                <span className="text-[10px] text-slate-500 flex items-center gap-1">
+                  <Clock className="w-3 h-3" />
+                  {requirement.target_duration_seconds}s
+                </span>
+              )}
+            {requirement.aspect_ratio && (
+              <span className="text-[10px] text-slate-500">{requirement.aspect_ratio}</span>
+            )}
+          </div>
+          <p className="text-[11px] text-slate-300">{requirement.description}</p>
+          {requirement.search_query && (
+            <p className="text-[10px] text-slate-500 font-mono">Query: {requirement.search_query}</p>
+          )}
+          {requirement.notes && <p className="text-[10px] text-slate-500">Notes: {requirement.notes}</p>}
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          <Button
+            variant="ghost"
+            size="sm"
+            icon={<Pencil className="w-3.5 h-3.5" />}
+            disabled={editingRequirement !== null}
+            onClick={() => openEditRequirement(item, requirement)}
+          >
+            <span className="sr-only">Edit asset requirement {requirement.id}</span>
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            icon={<Trash2 className="w-3.5 h-3.5 text-rose-400" />}
+            onClick={() => handleDeleteRequirement(item.id, requirement.id)}
+          >
+            <span className="sr-only">Delete asset requirement {requirement.id}</span>
+          </Button>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        {requirement.allowed_transitions.length === 0 ? (
+          <p className="text-[10px] text-slate-500">
+            This requirement is {requirement.status_label.toLowerCase()} and cannot change status.
+          </p>
+        ) : (
+          requirement.allowed_transitions.map((transition: AssetRequirementTransition) => (
+            <Button
+              key={transition.status}
+              variant={transition.destructive ? 'outline' : 'secondary'}
+              size="sm"
+              icon={
+                transition.status === 'fulfilled' ? (
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                ) : (
+                  <Package className="w-3.5 h-3.5" />
+                )
+              }
+              isLoading={requirementStatusBusy === requirement.id}
+              disabled={requirementStatusBusy !== null}
+              onClick={() => handleRequirementTransition(item.id, requirement.id, transition.status)}
+            >
+              {transition.action}
+            </Button>
+          ))
+        )}
+      </div>
+    </div>
+  );
+
+  const renderItemRequirements = (item: VisualPlanItem) => (
+    <div className="space-y-2 border-t border-slate-800 pt-2">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Package className="w-3.5 h-3.5 text-amber-400" />
+          <span className="text-[11px] font-semibold text-slate-400">Asset Requirements</span>
+          <Badge variant="slate">{item.asset_requirements?.length ?? 0}</Badge>
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          icon={<Plus className="w-3.5 h-3.5" />}
+          disabled={editingRequirement !== null}
+          onClick={() => openNewRequirement(item)}
+        >
+          Add
+        </Button>
+      </div>
+
+      {editingRequirement === 'new' && requirementItemId === item.id && renderRequirementForm('create')}
+
+      {item.asset_requirements && item.asset_requirements.length > 0 ? (
+        <div className="space-y-2">
+          {item.asset_requirements.map((requirement) => (
+            <React.Fragment key={requirement.id}>
+              {renderRequirementRow(item, requirement)}
+              {editingRequirement === requirement.id && requirementItemId === item.id && (
+                <div>{renderRequirementForm('edit')}</div>
+              )}
+            </React.Fragment>
+          ))}
+        </div>
+      ) : (
+        <p className="text-[10px] text-slate-500">
+          No assets required for this item yet. Generate requirements for the whole plan, or add one here.
+        </p>
+      )}
+    </div>
+  );
+
   const renderReadiness = () => {
     if (scriptReady) {
       return (
@@ -560,15 +1006,26 @@ export const VisualPlanPanel: React.FC<VisualPlanPanelProps> = ({ projectId }) =
                     plan.
                   </CardDescription>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  icon={<Plus className="w-3.5 h-3.5" />}
-                  onClick={openNewItem}
-                  disabled={editingItem !== null}
-                >
-                  Add Item
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    icon={<Plus className="w-3.5 h-3.5" />}
+                    onClick={openNewItem}
+                    disabled={editingItem !== null}
+                  >
+                    Add Item
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    icon={<Wand2 className="w-3.5 h-3.5" />}
+                    disabled={items.length === 0}
+                    onClick={() => setConfirmGenerate(true)}
+                  >
+                    Generate Requirements
+                  </Button>
+                </div>
               </div>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -689,11 +1146,49 @@ export const VisualPlanPanel: React.FC<VisualPlanPanelProps> = ({ projectId }) =
                     </div>
 
                     {editingItem === item.id && renderItemForm('edit', item)}
+
+                    {renderItemRequirements(item)}
                   </div>
                 ))
               )}
             </CardContent>
           </Card>
+
+          {/* CONFIRM GENERATION */}
+          {confirmGenerate && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+              <Card variant="default" className="max-w-md w-full p-6 border-slate-800 shadow-2xl">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-2 rounded-lg bg-amber-500/10 text-amber-400">
+                    <Wand2 className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-white">Generate Asset Requirements</h3>
+                    <p className="text-xs text-slate-400">Deterministic, no AI involved</p>
+                  </div>
+                </div>
+                <p className="text-xs text-slate-300 leading-relaxed mb-4">
+                  Every plan item without an asset requirement will get one pending requirement, with the
+                  type derived from the item visual type and the duration copied from the item.
+                </p>
+                <div className="flex items-start gap-2 p-3 rounded-lg bg-slate-900/60 border border-slate-800 mb-6">
+                  <Download className="w-4 h-4 shrink-0 mt-0.5 text-slate-400" />
+                  <p className="text-[11px] text-slate-400">
+                    Items that already have a requirement are left untouched, so your edits are safe. No media
+                    is downloaded or searched in this step.
+                  </p>
+                </div>
+                <div className="flex items-center justify-end gap-3">
+                  <Button variant="outline" size="sm" onClick={() => setConfirmGenerate(false)}>
+                    Cancel
+                  </Button>
+                  <Button size="sm" icon={<Wand2 className="w-3.5 h-3.5" />} isLoading={generating} onClick={handleGenerate}>
+                    Generate
+                  </Button>
+                </div>
+              </Card>
+            </div>
+          )}
 
           {/* CONFIRM DESTRUCTIVE TRANSITION */}
           {confirmTransition && (

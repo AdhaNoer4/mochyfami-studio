@@ -8,6 +8,7 @@ use Database\Factories\VisualPlanItemFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class VisualPlanItem extends Model
 {
@@ -38,5 +39,10 @@ class VisualPlanItem extends Model
     public function visualPlan(): BelongsTo
     {
         return $this->belongsTo(VisualPlan::class, 'visual_plan_id');
+    }
+
+    public function assetRequirements(): HasMany
+    {
+        return $this->hasMany(AssetRequirement::class, 'visual_plan_item_id');
     }
 }

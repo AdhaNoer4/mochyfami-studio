@@ -24,6 +24,7 @@ class VisualPlanItemResource extends JsonResource
             'visual_prompt' => $this->visual_prompt,
             'duration_seconds' => $this->duration_seconds,
             'notes' => $this->notes,
+            'asset_requirements' => AssetRequirementResource::collection($this->whenLoaded('assetRequirements')),
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),
         ];
