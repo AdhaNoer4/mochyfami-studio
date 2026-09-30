@@ -5,11 +5,14 @@ namespace Tests\Feature;
 use App\Enums\AssetRequirementAspectRatio;
 use App\Enums\AssetRequirementStatus;
 use App\Enums\AssetRequirementType;
+use App\Enums\AssetStatus;
+use App\Enums\AssetType;
 use App\Enums\ResearchClaimImportance;
 use App\Enums\ResearchClaimStatus;
 use App\Enums\ScriptStatus;
 use App\Enums\VisualPlanItemType;
 use App\Enums\VisualPlanSection;
+use App\Models\Asset;
 use App\Models\AssetRequirement;
 use App\Models\ContentProject;
 use App\Models\ResearchClaim;
@@ -20,7 +23,9 @@ use App\Models\User;
 use App\Models\VisualPlan;
 use App\Models\VisualPlanItem;
 use App\Services\VisualPlanService;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
@@ -111,6 +116,38 @@ class AssetRequirementApiTest extends TestCase
         return $url;
     }
 
+    private function assetsUrl(
+        ContentProject $project,
+        int $version,
+        ?int $item = null,
+        ?int $requirement = null,
+        ?int $asset = null
+    ): string {
+        $url = $this->url($project, $version, $item, $requirement);
+
+        if ($requirement !== null) {
+            $url .= '/assets';
+        }
+
+        if ($asset !== null) {
+            $url .= "/{$asset}";
+        }
+
+        return $url;
+    }
+
+    private function requirementFor(VisualPlanItem $item): AssetRequirement
+    {
+        return AssetRequirement::factory()->create(['visual_plan_item_id' => $item->id]);
+    }
+
+    private function assetFor(ContentProject $project, array $overrides = []): Asset
+    {
+        return Asset::factory()->create(
+            array_merge(['content_project_id' => $project->id], $overrides)
+        );
+    }
+
     private function requirementPayload(array $overrides = []): array
     {
         return array_merge([
@@ -134,6 +171,9 @@ class AssetRequirementApiTest extends TestCase
         $this->patchJson("{$base}/items/1/asset-requirements/1", ['notes' => 'x'])->assertUnauthorized();
         $this->patchJson("{$base}/items/1/asset-requirements/1/status", ['status' => 'searching'])->assertUnauthorized();
         $this->deleteJson("{$base}/items/1/asset-requirements/1")->assertUnauthorized();
+        $this->getJson("{$base}/items/1/asset-requirements/1/assets")->assertUnauthorized();
+        $this->postJson("{$base}/items/1/asset-requirements/1/assets", ['asset_id' => 1])->assertUnauthorized();
+        $this->deleteJson("{$base}/items/1/asset-requirements/1/assets/1")->assertUnauthorized();
         $this->postJson("{$base}/asset-requirements/generate")->assertUnauthorized();
     }
 
@@ -664,5 +704,620 @@ class AssetRequirementApiTest extends TestCase
         VisualPlanItem::query()->whereKey($item->id)->delete();
 
         $this->assertDatabaseMissing('visual_plan_items', ['id' => $item->id]);
+    }
+
+    // -----------------------------------------------------------------
+    // Asset <-> AssetRequirement relationship
+    // -----------------------------------------------------------------
+
+    #[Test]
+    public function test_an_asset_requirement_can_hold_several_assets(): void
+    {
+        Http::preventStrayRequests();
+        $user = User::factory()->create();
+        $project = $this->readyProject($user);
+        $item = $this->planWithItems($project, 1, 1)->items()->first();
+        $requirement = $this->requirementFor($item);
+
+        $first = $this->assetFor($project, ['title' => 'Cat walking 01']);
+        $second = $this->assetFor($project, ['title' => 'Cat walking 02']);
+        $third = $this->assetFor($project, ['title' => 'Cat walking 03']);
+
+        $requirement->assets()->attach([$first->id, $second->id, $third->id]);
+
+        $this->assertCount(3, $requirement->assets()->get());
+        $this->assertEqualsCanonicalizing(
+            [$first->id, $second->id, $third->id],
+            $requirement->assets()->pluck('assets.id')->all()
+        );
+    }
+
+    #[Test]
+    public function test_an_asset_can_belong_to_several_asset_requirements(): void
+    {
+        Http::preventStrayRequests();
+        $user = User::factory()->create();
+        $project = $this->readyProject($user);
+        $item = $this->planWithItems($project, 1, 1)->items()->first();
+
+        $first = $this->requirementFor($item);
+        $second = $this->requirementFor($item);
+        $asset = $this->assetFor($project);
+
+        $asset->assetRequirements()->attach([$first->id, $second->id]);
+
+        $this->assertCount(2, $asset->assetRequirements()->get());
+        $this->assertEqualsCanonicalizing(
+            [$first->id, $second->id],
+            $asset->assetRequirements()->pluck('asset_requirements.id')->all()
+        );
+    }
+
+    #[Test]
+    public function test_the_pivot_records_timestamps(): void
+    {
+        Http::preventStrayRequests();
+        $user = User::factory()->create();
+        $project = $this->readyProject($user);
+        $item = $this->planWithItems($project, 1, 1)->items()->first();
+        $requirement = $this->requirementFor($item);
+        $asset = $this->assetFor($project);
+
+        $requirement->assets()->attach($asset->id);
+
+        $pivot = DB::table('asset_requirement_asset')
+            ->where('asset_requirement_id', $requirement->id)
+            ->where('asset_id', $asset->id)
+            ->first();
+
+        $this->assertNotNull($pivot);
+        $this->assertNotNull($pivot->created_at);
+        $this->assertNotNull($pivot->updated_at);
+    }
+
+    #[Test]
+    public function test_the_database_refuses_a_duplicate_pair(): void
+    {
+        Http::preventStrayRequests();
+        $user = User::factory()->create();
+        $project = $this->readyProject($user);
+        $item = $this->planWithItems($project, 1, 1)->items()->first();
+        $requirement = $this->requirementFor($item);
+        $asset = $this->assetFor($project);
+
+        $requirement->assets()->attach($asset->id);
+
+        // The unique constraint is the safety net behind the service check: it
+        // has to hold even when the service is bypassed entirely.
+        $this->expectException(QueryException::class);
+
+        DB::table('asset_requirement_asset')->insert([
+            'asset_requirement_id' => $requirement->id,
+            'asset_id' => $asset->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+    }
+
+    // -----------------------------------------------------------------
+    // Attach
+    // -----------------------------------------------------------------
+
+    #[Test]
+    public function test_attach_returns_201_with_the_asset_in_the_response(): void
+    {
+        Http::preventStrayRequests();
+        $user = User::factory()->create();
+        $project = $this->readyProject($user);
+        $item = $this->planWithItems($project, 1, 1)->items()->first();
+        $requirement = $this->requirementFor($item);
+        $asset = $this->assetFor($project, ['title' => 'Cat walking 01']);
+
+        $this->actingAs($user, 'sanctum')
+            ->postJson(
+                $this->assetsUrl($project, 1, $item->id, $requirement->id),
+                ['asset_id' => $asset->id]
+            )
+            ->assertCreated()
+            ->assertJsonPath('data.id', $asset->id)
+            ->assertJsonPath('data.title', 'Cat walking 01')
+            ->assertJsonPath('data.content_project_id', $project->id)
+            ->assertJsonPath('data.type', $asset->type->value)
+            ->assertJsonPath('data.status', $asset->status->value);
+    }
+
+    #[Test]
+    public function test_attach_updates_the_requirement_relationship(): void
+    {
+        Http::preventStrayRequests();
+        $user = User::factory()->create();
+        $project = $this->readyProject($user);
+        $item = $this->planWithItems($project, 1, 1)->items()->first();
+        $requirement = $this->requirementFor($item);
+        $asset = $this->assetFor($project);
+
+        $this->assertCount(0, $requirement->assets()->get());
+
+        $this->actingAs($user, 'sanctum')
+            ->postJson(
+                $this->assetsUrl($project, 1, $item->id, $requirement->id),
+                ['asset_id' => $asset->id]
+            )
+            ->assertCreated();
+
+        $this->assertDatabaseHas('asset_requirement_asset', [
+            'asset_requirement_id' => $requirement->id,
+            'asset_id' => $asset->id,
+        ]);
+        $this->assertTrue($requirement->fresh()->assets()->whereKey($asset->id)->exists());
+    }
+
+    #[Test]
+    public function test_attach_updates_the_asset_relationship(): void
+    {
+        Http::preventStrayRequests();
+        $user = User::factory()->create();
+        $project = $this->readyProject($user);
+        $item = $this->planWithItems($project, 1, 1)->items()->first();
+        $requirement = $this->requirementFor($item);
+        $asset = $this->assetFor($project);
+
+        $this->actingAs($user, 'sanctum')
+            ->postJson(
+                $this->assetsUrl($project, 1, $item->id, $requirement->id),
+                ['asset_id' => $asset->id]
+            )
+            ->assertCreated();
+
+        $this->assertTrue($asset->fresh()->assetRequirements()->whereKey($requirement->id)->exists());
+    }
+
+    #[Test]
+    public function test_attach_rejects_a_missing_or_non_integer_asset_id(): void
+    {
+        Http::preventStrayRequests();
+        $user = User::factory()->create();
+        $project = $this->readyProject($user);
+        $item = $this->planWithItems($project, 1, 1)->items()->first();
+        $requirement = $this->requirementFor($item);
+        $url = $this->assetsUrl($project, 1, $item->id, $requirement->id);
+
+        $this->actingAs($user, 'sanctum')
+            ->postJson($url, [])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('asset_id');
+
+        $this->actingAs($user, 'sanctum')
+            ->postJson($url, ['asset_id' => 'not-an-id'])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('asset_id');
+    }
+
+    #[Test]
+    public function test_attach_returns_404_for_an_asset_that_does_not_exist(): void
+    {
+        Http::preventStrayRequests();
+        $user = User::factory()->create();
+        $project = $this->readyProject($user);
+        $item = $this->planWithItems($project, 1, 1)->items()->first();
+        $requirement = $this->requirementFor($item);
+
+        $this->actingAs($user, 'sanctum')
+            ->postJson(
+                $this->assetsUrl($project, 1, $item->id, $requirement->id),
+                ['asset_id' => 999999]
+            )
+            ->assertNotFound();
+    }
+
+    // -----------------------------------------------------------------
+    // Attach semantics: association is not fulfillment
+    // -----------------------------------------------------------------
+
+    #[Test]
+    public function test_attach_changes_neither_the_requirement_nor_the_asset_status(): void
+    {
+        Http::preventStrayRequests();
+        $user = User::factory()->create();
+        $project = $this->readyProject($user);
+        $item = $this->planWithItems($project, 1, 1)->items()->first();
+        $requirement = $this->requirementFor($item);
+        $asset = $this->assetFor($project, ['status' => AssetStatus::Available]);
+
+        $this->actingAs($user, 'sanctum')
+            ->postJson(
+                $this->assetsUrl($project, 1, $item->id, $requirement->id),
+                ['asset_id' => $asset->id]
+            )
+            ->assertCreated();
+
+        // A candidate is not a fulfillment, a selection, or an approval, so
+        // neither side may be advanced by being associated.
+        $this->assertSame(AssetRequirementStatus::Pending, $requirement->fresh()->status);
+        $this->assertSame(AssetStatus::Available, $asset->fresh()->status);
+    }
+
+    #[Test]
+    public function test_attach_allows_an_asset_whose_type_does_not_match_the_requirement(): void
+    {
+        Http::preventStrayRequests();
+        $user = User::factory()->create();
+        $project = $this->readyProject($user);
+        $item = $this->planWithItems($project, 1, 1)->items()->first();
+        $requirement = $this->requirementFor($item);
+
+        $this->assertSame(AssetRequirementType::Video, $requirement->requirement_type);
+
+        $image = $this->assetFor($project, ['type' => AssetType::Image]);
+
+        $this->actingAs($user, 'sanctum')
+            ->postJson(
+                $this->assetsUrl($project, 1, $item->id, $requirement->id),
+                ['asset_id' => $image->id]
+            )
+            ->assertCreated()
+            ->assertJsonPath('data.id', $image->id);
+
+        $this->assertTrue($requirement->fresh()->assets()->whereKey($image->id)->exists());
+    }
+
+    // -----------------------------------------------------------------
+    // Duplicate protection
+    // -----------------------------------------------------------------
+
+    #[Test]
+    public function test_a_second_attach_of_the_same_asset_returns_409(): void
+    {
+        Http::preventStrayRequests();
+        $user = User::factory()->create();
+        $project = $this->readyProject($user);
+        $item = $this->planWithItems($project, 1, 1)->items()->first();
+        $requirement = $this->requirementFor($item);
+        $asset = $this->assetFor($project);
+        $url = $this->assetsUrl($project, 1, $item->id, $requirement->id);
+
+        $this->actingAs($user, 'sanctum')
+            ->postJson($url, ['asset_id' => $asset->id])
+            ->assertCreated();
+
+        $this->actingAs($user, 'sanctum')
+            ->postJson($url, ['asset_id' => $asset->id])
+            ->assertStatus(409);
+    }
+
+    #[Test]
+    public function test_a_rejected_duplicate_attach_does_not_add_a_second_pivot_row(): void
+    {
+        Http::preventStrayRequests();
+        $user = User::factory()->create();
+        $project = $this->readyProject($user);
+        $item = $this->planWithItems($project, 1, 1)->items()->first();
+        $requirement = $this->requirementFor($item);
+        $asset = $this->assetFor($project);
+        $url = $this->assetsUrl($project, 1, $item->id, $requirement->id);
+
+        $this->actingAs($user, 'sanctum')->postJson($url, ['asset_id' => $asset->id])->assertCreated();
+        $this->actingAs($user, 'sanctum')->postJson($url, ['asset_id' => $asset->id])->assertStatus(409);
+
+        $this->assertSame(1, DB::table('asset_requirement_asset')
+            ->where('asset_requirement_id', $requirement->id)
+            ->where('asset_id', $asset->id)
+            ->count());
+    }
+
+    #[Test]
+    public function test_the_same_asset_may_be_attached_to_two_different_requirements(): void
+    {
+        Http::preventStrayRequests();
+        $user = User::factory()->create();
+        $project = $this->readyProject($user);
+        $item = $this->planWithItems($project, 1, 1)->items()->first();
+        $first = $this->requirementFor($item);
+        $second = $this->requirementFor($item);
+        $asset = $this->assetFor($project);
+
+        $this->actingAs($user, 'sanctum')
+            ->postJson($this->assetsUrl($project, 1, $item->id, $first->id), ['asset_id' => $asset->id])
+            ->assertCreated();
+
+        $this->actingAs($user, 'sanctum')
+            ->postJson($this->assetsUrl($project, 1, $item->id, $second->id), ['asset_id' => $asset->id])
+            ->assertCreated();
+
+        $this->assertCount(2, $asset->fresh()->assetRequirements()->get());
+    }
+
+    // -----------------------------------------------------------------
+    // List
+    // -----------------------------------------------------------------
+
+    #[Test]
+    public function test_list_returns_200_with_an_empty_list_when_nothing_is_associated(): void
+    {
+        Http::preventStrayRequests();
+        $user = User::factory()->create();
+        $project = $this->readyProject($user);
+        $item = $this->planWithItems($project, 1, 1)->items()->first();
+        $requirement = $this->requirementFor($item);
+        $this->assetFor($project);
+
+        $this->actingAs($user, 'sanctum')
+            ->getJson($this->assetsUrl($project, 1, $item->id, $requirement->id))
+            ->assertOk()
+            ->assertJsonCount(0, 'data.assets');
+    }
+
+    #[Test]
+    public function test_list_returns_only_the_assets_associated_with_that_requirement(): void
+    {
+        Http::preventStrayRequests();
+        $user = User::factory()->create();
+        $project = $this->readyProject($user);
+        $item = $this->planWithItems($project, 1, 1)->items()->first();
+        $requirement = $this->requirementFor($item);
+        $otherRequirement = $this->requirementFor($item);
+
+        $associated = $this->assetFor($project, ['title' => 'Associated']);
+        $elsewhere = $this->assetFor($project, ['title' => 'Belongs to another requirement']);
+        $unattached = $this->assetFor($project, ['title' => 'Never associated']);
+
+        $requirement->assets()->attach($associated->id);
+        $otherRequirement->assets()->attach($elsewhere->id);
+
+        $this->actingAs($user, 'sanctum')
+            ->getJson($this->assetsUrl($project, 1, $item->id, $requirement->id))
+            ->assertOk()
+            ->assertJsonCount(1, 'data.assets')
+            ->assertJsonPath('data.assets.0.id', $associated->id)
+            ->assertJsonPath('data.assets.0.title', 'Associated');
+    }
+
+    #[Test]
+    public function test_list_never_returns_an_asset_from_another_project(): void
+    {
+        Http::preventStrayRequests();
+        $user = User::factory()->create();
+        $mine = $this->readyProject($user);
+        $other = $this->readyProject($user);
+        $item = $this->planWithItems($mine, 1, 1)->items()->first();
+        $requirement = $this->requirementFor($item);
+
+        $ownAsset = $this->assetFor($mine, ['title' => 'Mine']);
+        $foreignAsset = $this->assetFor($other, ['title' => 'Theirs']);
+
+        $requirement->assets()->attach($ownAsset->id);
+
+        // Written straight into the pivot to stand in for a row that predates
+        // the scope check, so the list is proven to be scoped on its own rather
+        // than only benefiting from attach refusing the same pair.
+        DB::table('asset_requirement_asset')->insert([
+            'asset_requirement_id' => $requirement->id,
+            'asset_id' => $foreignAsset->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($user, 'sanctum')
+            ->getJson($this->assetsUrl($mine, 1, $item->id, $requirement->id))
+            ->assertOk()
+            ->assertJsonCount(1, 'data.assets')
+            ->assertJsonPath('data.assets.0.id', $ownAsset->id)
+            ->assertJsonMissing(['id' => $foreignAsset->id]);
+    }
+
+    #[Test]
+    public function test_list_returns_404_for_a_requirement_of_another_item(): void
+    {
+        Http::preventStrayRequests();
+        $user = User::factory()->create();
+        $project = $this->readyProject($user);
+        $plan = $this->planWithItems($project, 1, 2);
+        $items = $plan->items()->orderBy('id')->get();
+        $requirement = $this->requirementFor($items->last());
+
+        $this->actingAs($user, 'sanctum')
+            ->getJson($this->assetsUrl($project, 1, $items->first()->id, $requirement->id))
+            ->assertNotFound();
+    }
+
+    // -----------------------------------------------------------------
+    // Detach
+    // -----------------------------------------------------------------
+
+    #[Test]
+    public function test_detach_removes_the_association_only(): void
+    {
+        Http::preventStrayRequests();
+        $user = User::factory()->create();
+        $project = $this->readyProject($user);
+        $item = $this->planWithItems($project, 1, 1)->items()->first();
+        $requirement = $this->requirementFor($item);
+        $asset = $this->assetFor($project);
+        $requirement->assets()->attach($asset->id);
+
+        $this->actingAs($user, 'sanctum')
+            ->deleteJson($this->assetsUrl($project, 1, $item->id, $requirement->id, $asset->id))
+            ->assertOk();
+
+        $this->assertDatabaseMissing('asset_requirement_asset', [
+            'asset_requirement_id' => $requirement->id,
+            'asset_id' => $asset->id,
+        ]);
+
+        // Detaching is a metadata operation. Neither domain entity is removed.
+        $this->assertDatabaseHas('assets', ['id' => $asset->id]);
+        $this->assertDatabaseHas('asset_requirements', ['id' => $requirement->id]);
+    }
+
+    #[Test]
+    public function test_detach_returns_404_when_the_asset_is_not_associated(): void
+    {
+        Http::preventStrayRequests();
+        $user = User::factory()->create();
+        $project = $this->readyProject($user);
+        $item = $this->planWithItems($project, 1, 1)->items()->first();
+        $requirement = $this->requirementFor($item);
+        $asset = $this->assetFor($project);
+
+        $this->actingAs($user, 'sanctum')
+            ->deleteJson($this->assetsUrl($project, 1, $item->id, $requirement->id, $asset->id))
+            ->assertNotFound();
+    }
+
+    #[Test]
+    public function test_detach_returns_404_for_an_asset_from_another_project(): void
+    {
+        Http::preventStrayRequests();
+        $user = User::factory()->create();
+        $mine = $this->readyProject($user);
+        $other = $this->readyProject($user);
+        $item = $this->planWithItems($mine, 1, 1)->items()->first();
+        $requirement = $this->requirementFor($item);
+        $foreignAsset = $this->assetFor($other);
+
+        $this->actingAs($user, 'sanctum')
+            ->deleteJson($this->assetsUrl($mine, 1, $item->id, $requirement->id, $foreignAsset->id))
+            ->assertNotFound();
+    }
+
+    // -----------------------------------------------------------------
+    // Cross-project security
+    // -----------------------------------------------------------------
+
+    #[Test]
+    public function test_attach_rejects_an_asset_from_another_project_owned_by_the_same_user(): void
+    {
+        Http::preventStrayRequests();
+        $user = User::factory()->create();
+        $mine = $this->readyProject($user);
+        $alsoMine = $this->readyProject($user);
+        $item = $this->planWithItems($mine, 1, 1)->items()->first();
+        $requirement = $this->requirementFor($item);
+        $foreignAsset = $this->assetFor($alsoMine);
+
+        // The permission check passes here because one user owns both
+        // projects, so only the scope check itself can stop this.
+        $this->actingAs($user, 'sanctum')
+            ->postJson(
+                $this->assetsUrl($mine, 1, $item->id, $requirement->id),
+                ['asset_id' => $foreignAsset->id]
+            )
+            ->assertNotFound();
+
+        $this->assertDatabaseMissing('asset_requirement_asset', [
+            'asset_requirement_id' => $requirement->id,
+            'asset_id' => $foreignAsset->id,
+        ]);
+    }
+
+    #[Test]
+    public function test_attach_rejects_an_asset_from_another_users_project(): void
+    {
+        Http::preventStrayRequests();
+        $owner = User::factory()->create();
+        $stranger = User::factory()->create();
+        $project = $this->readyProject($owner);
+        $item = $this->planWithItems($project, 1, 1)->items()->first();
+        $requirement = $this->requirementFor($item);
+        $foreignAsset = $this->assetFor($this->readyProject($stranger));
+
+        $this->actingAs($owner, 'sanctum')
+            ->postJson(
+                $this->assetsUrl($project, 1, $item->id, $requirement->id),
+                ['asset_id' => $foreignAsset->id]
+            )
+            ->assertNotFound();
+
+        $this->assertDatabaseMissing('asset_requirement_asset', [
+            'asset_requirement_id' => $requirement->id,
+            'asset_id' => $foreignAsset->id,
+        ]);
+    }
+
+    #[Test]
+    public function test_a_stranger_cannot_read_or_write_another_projects_requirement_assets(): void
+    {
+        Http::preventStrayRequests();
+        $owner = User::factory()->create();
+        $stranger = User::factory()->create();
+        $project = $this->readyProject($owner);
+        $item = $this->planWithItems($project, 1, 1)->items()->first();
+        $requirement = $this->requirementFor($item);
+        $asset = $this->assetFor($project);
+        $url = $this->assetsUrl($project, 1, $item->id, $requirement->id);
+
+        $this->actingAs($stranger, 'sanctum')->getJson($url)->assertForbidden();
+        $this->actingAs($stranger, 'sanctum')->postJson($url, ['asset_id' => $asset->id])->assertForbidden();
+        $this->actingAs($stranger, 'sanctum')
+            ->deleteJson("{$url}/{$asset->id}")
+            ->assertForbidden();
+
+        $this->assertDatabaseMissing('asset_requirement_asset', [
+            'asset_requirement_id' => $requirement->id,
+            'asset_id' => $asset->id,
+        ]);
+    }
+
+    #[Test]
+    public function test_attach_rejects_a_requirement_from_another_script_version(): void
+    {
+        Http::preventStrayRequests();
+        $user = User::factory()->create();
+        $project = $this->readyProject($user);
+        $item = $this->planWithItems($project, 1, 1)->items()->first();
+        $requirement = $this->requirementFor($item);
+        $asset = $this->assetFor($project);
+        $this->reviewScript($project, 2);
+
+        $this->actingAs($user, 'sanctum')
+            ->postJson(
+                $this->assetsUrl($project, 2, $item->id, $requirement->id),
+                ['asset_id' => $asset->id]
+            )
+            ->assertNotFound();
+    }
+
+    // -----------------------------------------------------------------
+    // Database integrity
+    // -----------------------------------------------------------------
+
+    #[Test]
+    public function test_deleting_an_asset_removes_the_pivot_and_keeps_the_requirement(): void
+    {
+        Http::preventStrayRequests();
+        $user = User::factory()->create();
+        $project = $this->readyProject($user);
+        $item = $this->planWithItems($project, 1, 1)->items()->first();
+        $requirement = $this->requirementFor($item);
+        $asset = $this->assetFor($project);
+        $requirement->assets()->attach($asset->id);
+
+        Asset::query()->whereKey($asset->id)->delete();
+
+        $this->assertDatabaseMissing('asset_requirement_asset', [
+            'asset_requirement_id' => $requirement->id,
+            'asset_id' => $asset->id,
+        ]);
+        $this->assertDatabaseHas('asset_requirements', ['id' => $requirement->id]);
+    }
+
+    #[Test]
+    public function test_deleting_a_requirement_removes_the_pivot_and_keeps_the_asset(): void
+    {
+        Http::preventStrayRequests();
+        $user = User::factory()->create();
+        $project = $this->readyProject($user);
+        $item = $this->planWithItems($project, 1, 1)->items()->first();
+        $requirement = $this->requirementFor($item);
+        $asset = $this->assetFor($project);
+        $requirement->assets()->attach($asset->id);
+
+        AssetRequirement::query()->whereKey($requirement->id)->delete();
+
+        $this->assertDatabaseMissing('asset_requirement_asset', [
+            'asset_requirement_id' => $requirement->id,
+            'asset_id' => $asset->id,
+        ]);
+        $this->assertDatabaseHas('assets', ['id' => $asset->id]);
     }
 }

@@ -9,6 +9,7 @@ use App\Models\ContentProject;
 use App\Models\User;
 use App\Services\AssetService;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
@@ -350,11 +351,19 @@ class AssetTest extends TestCase
         $this->assertSame($mine->id, $asset->fresh()->content_project_id);
     }
 
-    public function test_an_asset_has_no_requirement_relationship_yet(): void
+    /**
+     * Phase 4 Part 3 added the requirement relationship, so this no longer
+     * asserts its absence. What still holds is the naming: the relation is
+     * assetRequirements, and there is deliberately no shorter `requirements`
+     * alias, because an asset relates to a requirement and nothing else and the
+     * unambiguous name is the one worth protecting.
+     */
+    public function test_an_asset_exposes_only_the_documented_requirement_relationship(): void
     {
         $asset = Asset::factory()->create();
 
-        $this->assertFalse(method_exists($asset, 'assetRequirements'));
+        $this->assertTrue(method_exists($asset, 'assetRequirements'));
+        $this->assertInstanceOf(BelongsToMany::class, $asset->assetRequirements());
         $this->assertFalse(method_exists($asset, 'requirements'));
     }
 }

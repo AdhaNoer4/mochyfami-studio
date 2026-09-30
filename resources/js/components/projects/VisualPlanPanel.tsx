@@ -7,6 +7,7 @@ import { getApiErrorMessage } from '../../services/researchService';
 import { scriptService } from '../../services/scriptService';
 import { visualPlanService } from '../../services/visualPlanService';
 import { assetRequirementService } from '../../services/assetRequirementService';
+import { RequirementAssetsSection } from '../assets/RequirementAssetsSection';
 import {
   AssetRequirement,
   AssetRequirementAspectRatio,
@@ -878,6 +879,22 @@ export const VisualPlanPanel: React.FC<VisualPlanPanelProps> = ({ projectId }) =
           ))
         )}
       </div>
+
+      {/*
+        Candidates live here rather than in the Asset Library because the list
+        only makes sense next to the requirement it belongs to. It records who
+        could satisfy the requirement, and deliberately advances nothing: a
+        candidate is not a fulfillment, a selection, or an approval.
+      */}
+      {version !== null && (
+        <RequirementAssetsSection
+          projectId={projectId}
+          version={version}
+          itemId={item.id}
+          requirementId={requirement.id}
+          requirementLabel={requirement.description}
+        />
+      )}
     </div>
   );
 

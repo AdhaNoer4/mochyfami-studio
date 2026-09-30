@@ -8,6 +8,7 @@ use Database\Factories\AssetFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class Asset extends Model
 {
@@ -59,5 +60,21 @@ class Asset extends Model
     public function project(): BelongsTo
     {
         return $this->belongsTo(ContentProject::class, 'content_project_id');
+    }
+
+    /**
+     * The requirements this asset is a candidate for.
+     *
+     * An asset can be a candidate for several requirements at once, which is
+     * why this is many-to-many and not hasMany. Membership here carries no
+     * status: neither this asset nor any of these requirements is advanced,
+     * approved, or marked fulfilled by being associated.
+     *
+     * The pivot table is named explicitly, for the same reason as on the other
+     * side of the relation: see AssetRequirement::assets().
+     */
+    public function assetRequirements(): BelongsToMany
+    {
+        return $this->belongsToMany(AssetRequirement::class, 'asset_requirement_asset')->withTimestamps();
     }
 }

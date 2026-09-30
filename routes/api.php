@@ -124,6 +124,10 @@ Route::prefix('v1')->group(function () {
                 Route::patch('items/{item}/asset-requirements/{requirement}', [VisualPlanAssetRequirementController::class, 'update'])->whereNumber(['item', 'requirement']);
                 Route::delete('items/{item}/asset-requirements/{requirement}', [VisualPlanAssetRequirementController::class, 'destroy'])->whereNumber(['item', 'requirement']);
                 Route::patch('items/{item}/asset-requirements/{requirement}/status', [VisualPlanAssetRequirementController::class, 'transitionStatus'])->whereNumber(['item', 'requirement']);
+
+                Route::get('items/{item}/asset-requirements/{requirement}/assets', [VisualPlanAssetRequirementController::class, 'assets'])->whereNumber(['item', 'requirement']);
+                Route::post('items/{item}/asset-requirements/{requirement}/assets', [VisualPlanAssetRequirementController::class, 'attachAsset'])->whereNumber(['item', 'requirement']);
+                Route::delete('items/{item}/asset-requirements/{requirement}/assets/{asset}', [VisualPlanAssetRequirementController::class, 'detachAsset'])->whereNumber(['item', 'requirement', 'asset']);
             });
         });
     });

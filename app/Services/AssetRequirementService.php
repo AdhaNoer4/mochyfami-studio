@@ -5,7 +5,9 @@ namespace App\Services;
 use App\Enums\AssetRequirementAspectRatio;
 use App\Enums\AssetRequirementStatus;
 use App\Enums\AssetRequirementType;
+use App\Exceptions\DuplicateAssetRequirementAssetException;
 use App\Exceptions\InvalidAssetRequirementStatusTransitionException;
+use App\Models\Asset;
 use App\Models\AssetRequirement;
 use App\Models\ContentProject;
 use App\Models\VisualPlanItem;
@@ -24,7 +26,8 @@ class AssetRequirementService
     private const MAX_SEARCH_QUERY_LENGTH = 255;
 
     public function __construct(
-        protected VisualPlanService $visualPlanService
+        protected VisualPlanService $visualPlanService,
+        protected AssetService $assetService
     ) {}
 
     /**
@@ -192,6 +195,101 @@ class AssetRequirementService
         $requirement->update(['status' => $target]);
 
         return $requirement->fresh();
+    }
+
+    /**
+     * List the assets associated with one requirement.
+     *
+     * This is the requirement's own candidate list, not the project's asset
+     * library: only assets attached to this specific requirement come back.
+     *
+     * The query is started from the project's own assets relation and then
+     * narrowed to the requirement, rather than from the requirement's relation
+     * alone. A pivot row that somehow paired this requirement with another
+     * project's asset would otherwise be followed straight through and hand
+     * back that project's metadata, so the project constraint has to be part of
+     * the query's construction instead of something checked afterwards.
+     *
+     * @throws ModelNotFoundException
+     */
+    public function listRequirementAssets(
+        ContentProject $project,
+        int $versionNumber,
+        int $itemId,
+        int $requirementId
+    ): Collection {
+        $requirement = $this->findRequirement($project, $versionNumber, $itemId, $requirementId);
+
+        return $project->assets()
+            ->whereHas('assetRequirements', fn ($query) => $query->whereKey($requirement->getKey()))
+            ->orderBy('assets.id')
+            ->get();
+    }
+
+    /**
+     * Associate an existing asset with a requirement as a candidate.
+     *
+     * Both sides are resolved inside the requested project before anything is
+     * written: the requirement through the project -> script version -> plan ->
+     * item chain, the asset through the project's own assets relation. An
+     * asset belonging to a different project is unreachable from here rather
+     * than rejected afterwards, so a valid asset id from somewhere else fails
+     * exactly like an id that does not exist at all.
+     *
+     * Nothing but the pivot row is written. The requirement status and the
+     * asset status are both left exactly as they were: attaching records a
+     * candidate, and a candidate is not a fulfillment, a selection, or an
+     * approval.
+     *
+     * @throws DuplicateAssetRequirementAssetException
+     * @throws ModelNotFoundException
+     */
+    public function attachAsset(
+        ContentProject $project,
+        int $versionNumber,
+        int $itemId,
+        int $requirementId,
+        int $assetId
+    ): Asset {
+        $requirement = $this->findRequirement($project, $versionNumber, $itemId, $requirementId);
+        $asset = $this->assetService->findAsset($project, $assetId);
+
+        if ($requirement->assets()->whereKey($asset->getKey())->exists()) {
+            throw new DuplicateAssetRequirementAssetException(
+                'This asset is already associated with the asset requirement.'
+            );
+        }
+
+        $requirement->assets()->attach($asset->getKey());
+
+        return $asset;
+    }
+
+    /**
+     * Remove an asset from a requirement's candidates.
+     *
+     * Detaching an asset that was never associated is a 404 rather than a
+     * quiet success, so a client that removed the wrong row is told so instead
+     * of being handed a false confirmation. Only the pivot row goes away:
+     * neither the asset nor the requirement is deleted.
+     *
+     * @throws ModelNotFoundException
+     */
+    public function detachAsset(
+        ContentProject $project,
+        int $versionNumber,
+        int $itemId,
+        int $requirementId,
+        int $assetId
+    ): void {
+        $requirement = $this->findRequirement($project, $versionNumber, $itemId, $requirementId);
+        $asset = $this->assetService->findAsset($project, $assetId);
+
+        if (! $requirement->assets()->whereKey($asset->getKey())->exists()) {
+            throw new ModelNotFoundException('Asset is not associated with this asset requirement.');
+        }
+
+        $requirement->assets()->detach($asset->getKey());
     }
 
     /**

@@ -1,6 +1,7 @@
 import { apiClient } from '../lib/api';
 import {
   ApiResponse,
+  Asset,
   AssetRequirement,
   AssetRequirementFormData,
   AssetRequirementGenerationSummary,
@@ -77,5 +78,60 @@ export const assetRequirementService = {
       `${basePath(projectId, version)}/asset-requirements/generate`,
     );
     return response.data.data;
+  },
+
+  /**
+   * The assets associated with one requirement.
+   *
+   * This is the requirement's own candidate list, never the project's whole
+   * asset library. The project asset library is fetched separately through
+   * assetService when the picker needs something to choose from.
+   */
+  async listAssets(
+    projectId: number,
+    version: number,
+    itemId: number,
+    requirementId: number,
+  ): Promise<Asset[]> {
+    const response = await apiClient.get<ApiResponse<{ assets: Asset[] }>>(
+      `${basePath(projectId, version)}/items/${itemId}/asset-requirements/${requirementId}/assets`,
+    );
+    return response.data.data.assets;
+  },
+
+  /**
+   * Records an existing asset as a candidate for the requirement.
+   *
+   * Association only. Neither the asset nor the requirement changes status as
+   * a result, and the server rejects a repeat of a pair it already holds, so
+   * a 409 here is a real conflict rather than a bad request.
+   */
+  async attachAsset(
+    projectId: number,
+    version: number,
+    itemId: number,
+    requirementId: number,
+    assetId: number,
+  ): Promise<Asset> {
+    const response = await apiClient.post<ApiResponse<Asset>>(
+      `${basePath(projectId, version)}/items/${itemId}/asset-requirements/${requirementId}/assets`,
+      { asset_id: assetId },
+    );
+    return response.data.data;
+  },
+
+  /**
+   * Removes the association. The asset and the requirement both stay.
+   */
+  async detachAsset(
+    projectId: number,
+    version: number,
+    itemId: number,
+    requirementId: number,
+    assetId: number,
+  ): Promise<void> {
+    await apiClient.delete(
+      `${basePath(projectId, version)}/items/${itemId}/asset-requirements/${requirementId}/assets/${assetId}`,
+    );
   },
 };

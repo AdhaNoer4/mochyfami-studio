@@ -3,12 +3,16 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Enums\AssetRequirementStatus;
+use App\Exceptions\DuplicateAssetRequirementAssetException;
 use App\Exceptions\InvalidAssetRequirementStatusTransitionException;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\VisualPlan\AttachAssetToRequirementRequest;
 use App\Http\Requests\VisualPlan\StoreAssetRequirementRequest;
 use App\Http\Requests\VisualPlan\UpdateAssetRequirementRequest;
 use App\Http\Requests\VisualPlan\UpdateAssetRequirementStatusRequest;
 use App\Http\Resources\AssetRequirementResource;
+use App\Http\Resources\AssetResource;
+use App\Models\Asset;
 use App\Models\ContentProject;
 use App\Models\VisualPlan;
 use App\Services\AssetRequirementService;
@@ -144,6 +148,139 @@ class VisualPlanAssetRequirementController extends Controller
         }
 
         return $this->successResponse(null, 'Asset requirement deleted successfully.');
+    }
+
+    /**
+     * List the assets associated with one asset requirement.
+     *
+     * This is the requirement's candidate list. The project's whole asset
+     * library is deliberately not reachable from here.
+     */
+    public function assets(ContentProject $project, int $version, int $item, int $requirement): JsonResponse
+    {
+        $plan = $this->resolvePlan($project, $version);
+
+        if ($plan === null) {
+            return $this->errorResponse('Visual plan not found for this script version.', null, 404);
+        }
+
+        Gate::authorize('view', $plan);
+        $this->authorizeProjectAssets($project, 'viewAny');
+
+        try {
+            $assets = $this->assetRequirementService->listRequirementAssets($project, $version, $item, $requirement);
+        } catch (ModelNotFoundException $e) {
+            return $this->errorResponse($e->getMessage(), null, 404);
+        }
+
+        return $this->successResponse([
+            'assets' => AssetResource::collection($assets),
+        ]);
+    }
+
+    /**
+     * Associate an existing asset with a requirement as a candidate.
+     *
+     * A second attach of the same pair is a 409, not a 500 and not a second
+     * pivot row. Neither the requirement's status nor the asset's status is
+     * touched: an association records a candidate and nothing more.
+     */
+    public function attachAsset(
+        AttachAssetToRequirementRequest $request,
+        ContentProject $project,
+        int $version,
+        int $item,
+        int $requirement
+    ): JsonResponse {
+        $plan = $this->resolvePlan($project, $version);
+
+        if ($plan === null) {
+            return $this->errorResponse('Visual plan not found for this script version.', null, 404);
+        }
+
+        Gate::authorize('update', $plan);
+        $this->authorizeProjectAssets($project, 'create');
+
+        try {
+            $asset = $this->assetRequirementService->attachAsset(
+                $project,
+                $version,
+                $item,
+                $requirement,
+                $request->validated()['asset_id'],
+            );
+        } catch (DuplicateAssetRequirementAssetException $e) {
+            return $this->errorResponse($e->getMessage(), null, 409);
+        } catch (ModelNotFoundException $e) {
+            return $this->errorResponse($e->getMessage(), null, 404);
+        } catch (Throwable $e) {
+            report($e);
+
+            return $this->errorResponse('Unable to associate the asset with the asset requirement.', null, 500);
+        }
+
+        return $this->successResponse(
+            new AssetResource($asset),
+            'Asset associated with the asset requirement successfully.',
+            201
+        );
+    }
+
+    /**
+     * Remove an asset from a requirement's candidates.
+     *
+     * Only the association is removed. The asset and the requirement both
+     * survive it, and detaching an asset that was never associated is a 404
+     * rather than a silent success.
+     */
+    public function detachAsset(
+        ContentProject $project,
+        int $version,
+        int $item,
+        int $requirement,
+        int $asset
+    ): JsonResponse {
+        $plan = $this->resolvePlan($project, $version);
+
+        if ($plan === null) {
+            return $this->errorResponse('Visual plan not found for this script version.', null, 404);
+        }
+
+        Gate::authorize('update', $plan);
+        $this->authorizeProjectAssets($project, 'create');
+
+        try {
+            $this->assetRequirementService->detachAsset($project, $version, $item, $requirement, $asset);
+        } catch (ModelNotFoundException $e) {
+            return $this->errorResponse($e->getMessage(), null, 404);
+        }
+
+        return $this->successResponse(null, 'Asset removed from the asset requirement successfully.');
+    }
+
+    /**
+     * Require ownership of the project whose assets are being read or written.
+     *
+     * VisualPlanPolicy allows every authenticated user, so authorizing the plan
+     * alone cannot answer "does this user own the project these assets belong
+     * to". AssetPolicy is the policy in this repository that actually resolves
+     * ownership, because an asset is reachable only through its project's
+     * creator, so the project is authorized through it as well.
+     *
+     * The ability is 'create' for both writes. That is not a claim that
+     * attaching is asset creation; AssetPolicy exposes exactly one
+     * project-scoped write ability, and reusing it keeps the ownership check
+     * in one place instead of spreading a second interpretation across the
+     * policy. Correctness of the association itself is still the service's
+     * job, not this gate's.
+     *
+     * The model class is passed ahead of the project on purpose. Authorizing
+     * the project alone resolves ProjectPolicy, whose abilities all return
+     * true, and the ownership check would silently never run.
+     */
+    private function authorizeProjectAssets(ContentProject $project, string $ability): void
+    {
+        Gate::authorize($ability, [Asset::class, $project]);
     }
 
     /**
