@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Asset\GetAssetsRequest;
 use App\Http\Requests\Asset\StoreAssetRequest;
 use App\Http\Requests\Asset\UpdateAssetRequest;
 use App\Http\Resources\AssetResource;
@@ -23,19 +24,31 @@ class AssetController extends Controller
     ) {}
 
     /**
-     * List the assets of one project.
+     * List the assets of one project with validated search, filters, sorting,
+     * and pagination.
      *
      * Both gates matter here. The policy decides whether this user may read
      * this project at all, and the list itself is read through the project's
      * own relation, so an asset from another project can never appear here
      * even when its id is already known.
      */
-    public function index(ContentProject $project): JsonResponse
+    public function index(GetAssetsRequest $request, ContentProject $project): JsonResponse
     {
         Gate::authorize('viewAny', [Asset::class, $project]);
 
+        $validated = $request->validated();
+        $perPage = (int) ($validated['per_page'] ?? 10);
+
+        $assets = $this->assetService->paginateAssets($project, $validated, $perPage);
+
         return $this->successResponse([
-            'items' => AssetResource::collection($this->assetService->listAssets($project)),
+            'items' => AssetResource::collection($assets->items()),
+            'pagination' => [
+                'total' => $assets->total(),
+                'per_page' => $assets->perPage(),
+                'current_page' => $assets->currentPage(),
+                'last_page' => $assets->lastPage(),
+            ],
         ]);
     }
 

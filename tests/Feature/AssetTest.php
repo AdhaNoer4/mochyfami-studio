@@ -152,10 +152,11 @@ class AssetTest extends TestCase
         Asset::factory()->create(['content_project_id' => $mine->id]);
         Asset::factory()->count(2)->create(['content_project_id' => $theirs->id]);
 
-        $listed = app(AssetService::class)->listAssets($mine);
+        $listed = app(AssetService::class)->paginateAssets($mine);
 
-        $this->assertCount(1, $listed);
-        $this->assertSame($mine->id, $listed->first()->content_project_id);
+        $this->assertSame(1, $listed->total());
+        $this->assertCount(1, $listed->items());
+        $this->assertSame($mine->id, $listed->items()[0]->content_project_id);
     }
 
     public function test_the_service_creates_metadata_only_and_forces_the_pending_status(): void

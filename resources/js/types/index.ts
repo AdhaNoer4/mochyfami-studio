@@ -887,3 +887,30 @@ export interface AssetFormData {
   notes?: string | null;
 }
 
+export type AssetSortField =
+  | 'created_at'
+  | 'updated_at'
+  | 'title'
+  | 'file_size'
+  | 'duration_seconds';
+
+export type AssetSortDirection = 'asc' | 'desc';
+
+/**
+ * Mirrors GetAssetsRequest. Every field is optional and the backend rejects an
+ * unknown type, status, or sort field, so these unions are the whole contract:
+ * a value outside them is a type error here and a 422 there.
+ *
+ * `''` is the "All" choice in a filter select. It is not a valid enum value and
+ * never reaches the API, because the service maps it to undefined.
+ */
+export interface AssetFilterParams {
+  page?: number;
+  per_page?: number;
+  search?: string;
+  type?: AssetType | '';
+  status?: AssetStatus | '';
+  sort?: AssetSortField;
+  direction?: AssetSortDirection;
+}
+

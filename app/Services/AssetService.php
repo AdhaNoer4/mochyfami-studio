@@ -5,20 +5,90 @@ namespace App\Services;
 use App\Enums\AssetStatus;
 use App\Models\Asset;
 use App\Models\ContentProject;
-use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 
 class AssetService
 {
     /**
-     * List the assets of one project.
+     * Columns a caller is allowed to order by.
      *
-     * The list is always filtered through the project's own relation, so an
-     * asset from another project can never appear here even if its id is known.
+     * This is a second line of defence, not the first: GetAssetsRequest rejects
+     * anything outside this list with a 422. The check is repeated here so
+     * that a future caller of this service cannot smuggle an arbitrary column
+     * name into an ORDER BY by skipping the request class.
      */
-    public function listAssets(ContentProject $project): Collection
+    protected array $allowedSortFields = [
+        'created_at',
+        'updated_at',
+        'title',
+        'file_size',
+        'duration_seconds',
+    ];
+
+    /**
+     * Paginated asset list with validated search, filters, and sorting.
+     *
+     * The query is started from the project's own relation rather than from
+     * the Asset model with a where added afterwards. That ordering matters:
+     * the project constraint is part of the query's construction, so no
+     * combination of search, filter, sort, or page can widen it. An asset
+     * from another project is unreachable from here, not filtered out.
+     *
+     * Search, filtering, ordering, and the row limit all happen in SQL. Nothing
+     * is loaded and then narrowed in PHP, and no relationship is eager loaded:
+     * an asset is a flat metadata row and eager loading the project it already
+     * belongs to would only add a query per row.
+     */
+    public function paginateAssets(ContentProject $project, array $filters = [], int $perPage = 10): LengthAwarePaginator
     {
-        return $project->assets()->latest('id')->get();
+        $query = $project->assets()->getQuery();
+
+        // Database bound search across the fields a human recognises an asset
+        // by. The value is passed as a bound parameter by Eloquent, so a
+        // search term containing quotes or wildcards cannot alter the query.
+        if (! empty($filters['search'])) {
+            $search = trim($filters['search']);
+
+            $query->where(function ($q) use ($search) {
+                $q->where('title', 'like', "%{$search}%")
+                    ->orWhere('file_name', 'like', "%{$search}%")
+                    ->orWhere('source_name', 'like', "%{$search}%")
+                    ->orWhere('notes', 'like', "%{$search}%");
+            });
+        }
+
+        if (! empty($filters['type'])) {
+            $query->where('type', $filters['type']);
+        }
+
+        if (! empty($filters['status'])) {
+            $query->where('status', $filters['status']);
+        }
+
+        // Strict allowlist verification. The comparison is strict so a numeric
+        // or nullish sort value can never be coerced into a match.
+        $sortField = $filters['sort'] ?? 'created_at';
+        if (! in_array($sortField, $this->allowedSortFields, true)) {
+            $sortField = 'created_at';
+        }
+
+        $sortDirection = strtolower($filters['direction'] ?? 'desc');
+        if (! in_array($sortDirection, ['asc', 'desc'], true)) {
+            $sortDirection = 'desc';
+        }
+
+        $query->orderBy($sortField, $sortDirection);
+
+        // A secondary order keeps pagination stable. Without it two assets
+        // that tie on the requested column can swap between pages, so a row
+        // the caller already saw reappears on the next page and another never
+        // appears at all.
+        if ($sortField !== 'id') {
+            $query->orderBy('id', 'desc');
+        }
+
+        return $query->paginate($perPage);
     }
 
     /**

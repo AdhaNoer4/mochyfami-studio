@@ -7,6 +7,7 @@ import { projectService } from '../../services/projectService';
 import { ResearchPanel } from '../../components/projects/ResearchPanel';
 import { ScriptPanel } from '../../components/projects/ScriptPanel';
 import { VisualPlanPanel } from '../../components/projects/VisualPlanPanel';
+import { AssetLibraryPanel } from '../../components/projects/AssetLibraryPanel';
 import { ContentProject, ContentProjectStatus, ProjectTransition } from '../../types';
 import {
   ArrowLeft,
@@ -50,7 +51,7 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({ projectId,
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [confirmTransition, setConfirmTransition] = useState<ProjectTransition | null>(null);
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'research' | 'script' | 'visual-plan'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'research' | 'script' | 'visual-plan' | 'assets'>('overview');
 
   useEffect(() => {
     setLoading(true);
@@ -292,6 +293,16 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({ projectId,
         >
           Visual Plan
         </button>
+        <button
+          className={`px-4 py-2 text-xs font-semibold rounded-t-lg border-b-2 transition-colors ${
+            activeTab === 'assets'
+              ? 'border-indigo-500 text-white bg-slate-800/40'
+              : 'border-transparent text-slate-400 hover:text-slate-200'
+          }`}
+          onClick={() => setActiveTab('assets')}
+        >
+          Assets
+        </button>
       </div>
 
       {activeTab === 'research' ? (
@@ -300,6 +311,8 @@ export const ProjectDetailPage: React.FC<ProjectDetailPageProps> = ({ projectId,
         <ScriptPanel projectId={project.id} />
       ) : activeTab === 'visual-plan' ? (
         <VisualPlanPanel projectId={project.id} />
+      ) : activeTab === 'assets' ? (
+        <AssetLibraryPanel projectId={project.id} />
       ) : (
         <>
       {/* Overview Metadata Card */}

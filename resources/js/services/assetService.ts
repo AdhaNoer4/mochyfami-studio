@@ -1,5 +1,11 @@
 import { apiClient } from '../lib/api';
-import { ApiResponse, Asset, AssetFormData } from '../types';
+import {
+  ApiResponse,
+  Asset,
+  AssetFilterParams,
+  AssetFormData,
+  PaginatedData,
+} from '../types';
 
 const basePath = (projectId: number) => `/projects/${projectId}/assets`;
 
@@ -8,11 +14,25 @@ const basePath = (projectId: number) => `/projects/${projectId}/assets`;
  * an asset through its lifecycle.
  */
 export const assetService = {
-  async list(projectId: number): Promise<Asset[]> {
-    const response = await apiClient.get<ApiResponse<{ items: Asset[] }>>(
+  async list(
+    projectId: number,
+    params: AssetFilterParams = {},
+  ): Promise<PaginatedData<Asset>> {
+    const response = await apiClient.get<ApiResponse<PaginatedData<Asset>>>(
       `${basePath(projectId)}`,
+      {
+        params: {
+          page: params.page || 1,
+          per_page: params.per_page || 10,
+          search: params.search || undefined,
+          type: params.type || undefined,
+          status: params.status || undefined,
+          sort: params.sort || 'created_at',
+          direction: params.direction || 'desc',
+        },
+      },
     );
-    return response.data.data.items;
+    return response.data.data;
   },
 
   async get(projectId: number, assetId: number): Promise<Asset> {
