@@ -68,4 +68,9 @@ class ContentProject extends Model
     {
         return $this->hasMany(VisualPlan::class, 'content_project_id');
     }
+
+    public function assets(): HasMany
+    {
+        return $this->hasMany(Asset::class, 'content_project_id');
+    }
 }

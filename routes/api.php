@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\V1\AssetController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\CategoryController;
 use App\Http\Controllers\Api\V1\DashboardController;
@@ -46,6 +47,14 @@ Route::prefix('v1')->group(function () {
         Route::apiResource('ideas', IdeaController::class);
         Route::patch('projects/{project}/status', [ProjectController::class, 'transitionStatus']);
         Route::apiResource('projects', ProjectController::class);
+
+        Route::prefix('projects/{project}/assets')->group(function () {
+            Route::get('/', [AssetController::class, 'index']);
+            Route::post('/', [AssetController::class, 'store']);
+            Route::get('{asset}', [AssetController::class, 'show'])->whereNumber('asset');
+            Route::patch('{asset}', [AssetController::class, 'update'])->whereNumber('asset');
+            Route::delete('{asset}', [AssetController::class, 'destroy'])->whereNumber('asset');
+        });
 
         Route::prefix('projects/{project}/research')->group(function () {
             Route::post('/', [ResearchController::class, 'store']);

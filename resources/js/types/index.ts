@@ -832,3 +832,58 @@ export interface VisualPlanQualityResult {
   warnings: VisualPlanQualityIssue[];
   info: VisualPlanQualityIssue[];
 }
+
+export type AssetType = 'video' | 'image' | 'audio' | 'other';
+
+export type AssetStatus = 'pending' | 'available' | 'processing' | 'approved' | 'rejected' | 'archived';
+
+/**
+ * Asset metadata only. There is no file behind any of these fields yet: a null
+ * file_name or mime_type is the normal state, and `status` describes where the
+ * asset sits in the media pipeline rather than a verified file.
+ */
+export interface Asset {
+  id: number;
+  content_project_id: number;
+  type: AssetType;
+  type_label: string;
+  status: AssetStatus;
+  status_label: string;
+  title?: string | null;
+  description?: string | null;
+  file_name?: string | null;
+  mime_type?: string | null;
+  file_size?: number | null;
+  duration_seconds?: number | null;
+  width?: number | null;
+  height?: number | null;
+  source_url?: string | null;
+  source_name?: string | null;
+  license_type?: string | null;
+  attribution?: string | null;
+  notes?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+/**
+ * `status` is absent on purpose. The server decides it, and an update can
+ * never move an asset along its lifecycle.
+ */
+export interface AssetFormData {
+  type: AssetType;
+  title?: string | null;
+  description?: string | null;
+  file_name?: string | null;
+  mime_type?: string | null;
+  file_size?: number | null;
+  duration_seconds?: number | null;
+  width?: number | null;
+  height?: number | null;
+  source_url?: string | null;
+  source_name?: string | null;
+  license_type?: string | null;
+  attribution?: string | null;
+  notes?: string | null;
+}
+
