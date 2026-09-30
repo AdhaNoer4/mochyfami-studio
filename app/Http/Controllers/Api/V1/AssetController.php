@@ -2,25 +2,31 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Exceptions\AssetFileStorageException;
+use App\Exceptions\InvalidAssetFileTypeException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Asset\GetAssetsRequest;
 use App\Http\Requests\Asset\StoreAssetRequest;
 use App\Http\Requests\Asset\UpdateAssetRequest;
+use App\Http\Requests\Asset\UploadAssetFileRequest;
 use App\Http\Resources\AssetResource;
 use App\Models\Asset;
 use App\Models\ContentProject;
+use App\Services\AssetFileStorageService;
 use App\Services\AssetService;
 use App\Traits\ApiResponse;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Gate;
+use Throwable;
 
 class AssetController extends Controller
 {
     use ApiResponse;
 
     public function __construct(
-        protected AssetService $assetService
+        protected AssetService $assetService,
+        protected AssetFileStorageService $fileStorage
     ) {}
 
     /**
@@ -99,7 +105,58 @@ class AssetController extends Controller
     }
 
     /**
+     * Store a physical file for one of the project's assets.
+     *
+     * Kept apart from the metadata endpoints on purpose: this is the only
+     * route in the asset API that writes to the filesystem, and the only one
+     * that ever sets file_path.
+     *
+     * The order of the checks is the security of this endpoint. The asset is
+     * resolved through the project's own relation first, so an id belonging to
+     * another project is simply not there and answers 404; only then is the
+     * update ability authorized, so a stranger learns nothing about an asset
+     * they were never allowed to touch. Validation of the binary has already
+     * run by the time the controller is reached.
+     */
+    public function uploadFile(UploadAssetFileRequest $request, ContentProject $project, int $asset): JsonResponse
+    {
+        try {
+            $model = $this->assetService->findAsset($project, $asset);
+        } catch (ModelNotFoundException $e) {
+            return $this->errorResponse($e->getMessage(), null, 404);
+        }
+
+        Gate::authorize('update', $model);
+
+        try {
+            $this->fileStorage->assertCompatible($model, $request->file('file'));
+
+            $this->fileStorage->replace($model, $request->file('file'));
+        } catch (InvalidAssetFileTypeException $e) {
+            return $this->errorResponse($e->getMessage(), ['file' => [$e->getMessage()]], 422);
+        } catch (AssetFileStorageException $e) {
+            report($e);
+
+            return $this->errorResponse('The file could not be stored.', null, 500);
+        } catch (Throwable $e) {
+            report($e);
+
+            return $this->errorResponse('The file could not be stored.', null, 500);
+        }
+
+        return $this->successResponse(
+            new AssetResource($model->fresh()),
+            'File uploaded successfully.',
+            200
+        );
+    }
+
+    /**
      * Delete asset metadata of the project.
+     *
+     * The stored file goes with it. deleteAsset() removes the row first and
+     * then the file, so a failure can leave an unreferenced file behind but can
+     * never leave a live row claiming to have a file that is gone.
      */
     public function destroy(ContentProject $project, int $asset): JsonResponse
     {

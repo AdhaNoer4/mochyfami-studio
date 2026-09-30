@@ -16,6 +16,7 @@ import {
   Link2,
   Loader2,
   Music,
+  Paperclip,
   Plus,
   Search,
   Video,
@@ -214,6 +215,15 @@ export const RequirementAssetsSection: React.FC<RequirementAssetsSectionProps> =
             <Badge variant={getAssetStatusVariant(asset.status)} size="sm">
               {asset.status_label}
             </Badge>
+            {asset.file_name && (
+              <span
+                className="inline-flex items-center gap-1 text-[10px] text-emerald-400"
+                title={`File attached: ${asset.file_name}`}
+              >
+                <Paperclip className="w-3 h-3" />
+                File attached
+              </span>
+            )}
             {(fileSize || dimensions) && (
               <span className="text-[10px] text-slate-500">
                 {[fileSize, dimensions].filter(Boolean).join(' - ')}
@@ -273,8 +283,8 @@ export const RequirementAssetsSection: React.FC<RequirementAssetsSectionProps> =
             </div>
 
             <p className="text-[11px] text-slate-500">
-              Assets are metadata only in this part. Uploading a file, or previewing one, is not
-              available here yet.
+              Attach a file from the Asset Library first. Previewing an attached file is not
+              available yet.
             </p>
 
             {pickerError && (

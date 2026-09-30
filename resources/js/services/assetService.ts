@@ -10,8 +10,8 @@ import {
 const basePath = (projectId: number) => `/projects/${projectId}/assets`;
 
 /**
- * Metadata only. Nothing here uploads a file, fetches a source_url, or moves
- * an asset through its lifecycle.
+ * Metadata plus file attachment. Nothing here fetches a source_url or moves an
+ * asset through its lifecycle.
  */
 export const assetService = {
   async list(
@@ -64,5 +64,28 @@ export const assetService = {
 
   async remove(projectId: number, assetId: number): Promise<void> {
     await apiClient.delete(`${basePath(projectId)}/${assetId}`);
+  },
+
+  /**
+   * Uploads a file for an existing asset, replacing any file it already had.
+   *
+   * The browser sends the file and nothing else. The server decides whether the
+   * file suits the asset's type, what it is called on disk, and where it goes,
+   * so there is no client-supplied path or size to disagree about.
+   */
+  async uploadFile(projectId: number, assetId: number, file: File): Promise<Asset> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await apiClient.post<ApiResponse<Asset>>(
+      `${basePath(projectId)}/${assetId}/file`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      },
+    );
+    return response.data.data;
   },
 };

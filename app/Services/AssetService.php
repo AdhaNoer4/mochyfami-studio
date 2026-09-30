@@ -11,6 +11,17 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
 class AssetService
 {
     /**
+     * @param  AssetFileStorageService  $files  The only path to the filesystem.
+     *                                          Injected so that deleting an
+     *                                          asset also removes its file
+     *                                          without this class reaching
+     *                                          for Storage directly.
+     */
+    public function __construct(
+        protected AssetFileStorageService $files
+    ) {}
+
+    /**
      * Columns a caller is allowed to order by.
      *
      * This is a second line of defence, not the first: GetAssetsRequest rejects
@@ -174,16 +185,25 @@ class AssetService
     }
 
     /**
-     * Delete asset metadata.
+     * Delete asset metadata and the file stored behind it.
      *
-     * Deleting a row only removes metadata. Part 1 stores no files, so there
-     * is nothing on disk to clean up and no storage driver to call.
+     * The row goes first, on purpose. Deleting in the other order would mean a
+     * failed row delete leaves a live row pointing at a file that has already
+     * been removed, and that row would then claim to have a file it does not
+     * have. Deleting the row first means the worst case is the reverse: a file
+     * left on disk that nothing points at, which is reported and can be swept
+     * up later. An asset without a file is the normal case, not an error, so
+     * it deletes without touching storage at all.
      *
      * The asset must come from findAsset(), for the same reason as in
      * updateAsset().
      */
     public function deleteAsset(Asset $asset): void
     {
+        $filePath = $asset->file_path;
+
         $asset->delete();
+
+        $this->files->deleteQuietly($filePath);
     }
 }

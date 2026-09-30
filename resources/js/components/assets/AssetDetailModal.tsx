@@ -48,9 +48,11 @@ const DetailGroup: React.FC<{ title: string; children: React.ReactNode }> = ({
 );
 
 /**
- * Read only. There is no playback, no download button, and no preview url:
- * no file exists behind this metadata yet, so anything that rendered media
- * would be showing the user something that is not their asset.
+ * Read only.
+ *
+ * There is no playback, no download button, and no preview url. The file is
+ * stored privately and is not served, so there is no URL to render from, and
+ * the panel sticks to the metadata that describes it.
  */
 export const AssetDetailModal: React.FC<AssetDetailModalProps> = ({ asset, onClose }) => {
   const fileSize = formatFileSize(asset.file_size);
@@ -102,6 +104,7 @@ export const AssetDetailModal: React.FC<AssetDetailModalProps> = ({ asset, onClo
         </div>
 
         <DetailGroup title="File">
+          <DetailRow label="Attached" value={asset.file_name ? 'Yes' : null} />
           <DetailRow label="File Name" value={asset.file_name} />
           <DetailRow label="MIME Type" value={asset.mime_type} />
           <DetailRow label="File Size" value={fileSize} />

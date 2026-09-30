@@ -8,6 +8,7 @@ use App\Models\Asset;
 use App\Models\ContentProject;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -53,6 +54,9 @@ class AssetApiTest extends TestCase
         $this->postJson($base, $this->payload())->assertUnauthorized();
         $this->getJson("{$base}/1")->assertUnauthorized();
         $this->patchJson("{$base}/1", ['title' => 'x'])->assertUnauthorized();
+        $this->post("{$base}/1/file", ['file' => UploadedFile::fake()->create('clip.mp4', 4, 'video/mp4')], [
+            'Accept' => 'application/json',
+        ])->assertUnauthorized();
         $this->deleteJson("{$base}/1")->assertUnauthorized();
     }
 

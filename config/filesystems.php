@@ -38,6 +38,22 @@ return [
             'report' => false,
         ],
 
+        /*
+         * Uploaded asset files. Deliberately separate from "local" even though
+         * the root is identical, so that asset media has a named boundary of its
+         * own: Storage::fake('assets') is unambiguous in tests, a future S3
+         * swap is a one line config change, and nothing here can be served
+         * even by accident. There is no "url" and serve is false, so this disk
+         * cannot hand out a public address for an uploaded file.
+         */
+        'assets' => [
+            'driver' => 'local',
+            'root' => storage_path('app/private'),
+            'serve' => false,
+            'throw' => false,
+            'report' => false,
+        ],
+
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),

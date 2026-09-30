@@ -53,6 +53,7 @@ Route::prefix('v1')->group(function () {
             Route::post('/', [AssetController::class, 'store']);
             Route::get('{asset}', [AssetController::class, 'show'])->whereNumber('asset');
             Route::patch('{asset}', [AssetController::class, 'update'])->whereNumber('asset');
+            Route::post('{asset}/file', [AssetController::class, 'uploadFile'])->whereNumber('asset');
             Route::delete('{asset}', [AssetController::class, 'destroy'])->whereNumber('asset');
         });
 

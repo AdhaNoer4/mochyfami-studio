@@ -7,6 +7,7 @@ import { AssetFilterBar, DEFAULT_ASSET_FILTERS } from '../assets/AssetFilterBar'
 import { AssetCard } from '../assets/AssetCard';
 import { AssetFormModal } from '../assets/AssetFormModal';
 import { AssetDetailModal } from '../assets/AssetDetailModal';
+import { AssetUploadModal } from '../assets/AssetUploadModal';
 import {
   AlertTriangle,
   ChevronLeft,
@@ -52,6 +53,7 @@ export const AssetLibraryPanel: React.FC<AssetLibraryPanelProps> = ({ projectId 
   const [formAsset, setFormAsset] = useState<Asset | null>(null);
   const [formOpen, setFormOpen] = useState<boolean>(false);
   const [detailAsset, setDetailAsset] = useState<Asset | null>(null);
+  const [uploadAsset, setUploadAsset] = useState<Asset | null>(null);
   const [deleteAsset, setDeleteAsset] = useState<Asset | null>(null);
   const [deleting, setDeleting] = useState<boolean>(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -119,6 +121,20 @@ export const AssetLibraryPanel: React.FC<AssetLibraryPanelProps> = ({ projectId 
     if (!formAsset) {
       setDetailAsset(saved);
     }
+  };
+
+  const handleUploaded = (updated: Asset) => {
+    setUploadAsset(null);
+    setSuccessMessage(
+      updated.file_name
+        ? `File uploaded successfully: ${updated.file_name}.`
+        : 'File uploaded successfully.',
+    );
+    // The list is reloaded rather than patched in place: an upload changes
+    // file metadata that a filter or sort may depend on, and the server is
+    // the only one who knows the resulting order.
+    reload();
+    setDetailAsset(updated);
   };
 
   const handleDelete = async () => {
@@ -256,6 +272,7 @@ export const AssetLibraryPanel: React.FC<AssetLibraryPanelProps> = ({ projectId 
               asset={asset}
               onView={setDetailAsset}
               onEdit={openEditModal}
+              onUploadFile={setUploadAsset}
               onDelete={setDeleteAsset}
             />
           ))}
@@ -307,6 +324,16 @@ export const AssetLibraryPanel: React.FC<AssetLibraryPanelProps> = ({ projectId 
         />
       )}
 
+      {/* Upload Modal */}
+      {uploadAsset && (
+        <AssetUploadModal
+          projectId={projectId}
+          asset={uploadAsset}
+          onClose={() => setUploadAsset(null)}
+          onUploaded={handleUploaded}
+        />
+      )}
+
       {/* Detail Modal */}
       {detailAsset && <AssetDetailModal asset={detailAsset} onClose={() => setDetailAsset(null)} />}
 
@@ -329,7 +356,9 @@ export const AssetLibraryPanel: React.FC<AssetLibraryPanelProps> = ({ projectId 
               <span className="font-bold text-white">
                 {deleteAsset.title || deleteAsset.file_name || `asset #${deleteAsset.id}`}
               </span>
-              ? Only the metadata record is removed. No file is affected, because no file is stored.
+              ? The metadata record is removed and the stored file is deleted with it. If the file
+              cannot be deleted, the record still goes: nothing is left pointing at a file that may
+              be orphaned on disk.
             </p>
 
             {deleteError && (

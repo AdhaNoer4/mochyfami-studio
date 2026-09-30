@@ -3,12 +3,23 @@ import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
 import { Asset, AssetStatus, AssetType } from '../../types';
-import { FileText, Music, Video, Image as ImageIcon, Eye, Edit2, Trash2 } from 'lucide-react';
+import {
+  FileText,
+  Music,
+  Video,
+  Image as ImageIcon,
+  Eye,
+  Edit2,
+  Paperclip,
+  Trash2,
+  UploadCloud,
+} from 'lucide-react';
 
 export interface AssetCardProps {
   asset: Asset;
   onView: (asset: Asset) => void;
   onEdit: (asset: Asset) => void;
+  onUploadFile: (asset: Asset) => void;
   onDelete: (asset: Asset) => void;
 }
 
@@ -20,9 +31,12 @@ const TYPE_ICONS: Record<AssetType, React.ElementType> = {
 };
 
 /**
- * A type glyph only. There is no thumbnail here on purpose: no file is stored
- * behind this metadata, so any image shown would be a placeholder that reads
- * as though a real asset were attached.
+ * A type glyph only, and it stays a glyph now that files exist too.
+ *
+ * Files are stored privately and are not served, so there is no URL to render
+ * a real thumbnail or player from. Drawing a stand-in would show the user
+ * something that is not their asset; the attached-file indicator below is the
+ * honest version of that information.
  */
 function getTypeIcon(type: AssetType) {
   return TYPE_ICONS[type] || FileText;
@@ -79,10 +93,20 @@ export function formatDimensions(asset: Asset) {
   return `${asset.width} x ${asset.height}`;
 }
 
-export const AssetCard: React.FC<AssetCardProps> = ({ asset, onView, onEdit, onDelete }) => {
+export const AssetCard: React.FC<AssetCardProps> = ({
+  asset,
+  onView,
+  onEdit,
+  onUploadFile,
+  onDelete,
+}) => {
   const TypeIcon = getTypeIcon(asset.type);
   const fileSize = formatFileSize(asset.file_size);
   const dimensions = formatDimensions(asset);
+  const hasFile = Boolean(asset.file_name);
+  // An Other asset cannot hold a file, so offering the action would only lead
+  // to a rejection the user could have been spared.
+  const acceptsFile = asset.type !== 'other';
 
   return (
     <Card variant="default" className="h-full flex flex-col">
@@ -114,6 +138,19 @@ export const AssetCard: React.FC<AssetCardProps> = ({ asset, onView, onEdit, onD
         <Badge variant={getAssetStatusVariant(asset.status)} size="sm">
           {asset.status_label}
         </Badge>
+        {hasFile ? (
+          <span
+            className="inline-flex items-center gap-1 text-[10px] text-emerald-400"
+            title={`File attached: ${asset.file_name}`}
+          >
+            <Paperclip className="w-3 h-3" />
+            File attached
+          </span>
+        ) : (
+          acceptsFile && (
+            <span className="text-[10px] text-slate-600">No file attached</span>
+          )
+        )}
       </div>
 
       {asset.description && (
@@ -150,6 +187,17 @@ export const AssetCard: React.FC<AssetCardProps> = ({ asset, onView, onEdit, onD
           >
             Details
           </Button>
+          {acceptsFile && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onUploadFile(asset)}
+              icon={<UploadCloud className="w-3.5 h-3.5" />}
+              className="text-slate-400 hover:text-white"
+            >
+              {hasFile ? 'Replace' : 'Upload'}
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="sm"

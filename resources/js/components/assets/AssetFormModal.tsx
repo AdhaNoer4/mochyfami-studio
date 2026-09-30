@@ -193,7 +193,8 @@ export const AssetFormModal: React.FC<AssetFormModalProps> = ({
               {isEditing ? 'Edit Asset Metadata' : 'Add Asset Metadata'}
             </h3>
             <p className="text-[11px] text-slate-400 mt-0.5">
-              Records what this media resource is. No file is uploaded, downloaded, or previewed.
+              Records what this media resource is. Uploading a file is done from the Asset Library;
+              the file fields below describe a file that is already attached.
             </p>
           </div>
         </div>
