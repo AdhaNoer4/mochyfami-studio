@@ -57,6 +57,8 @@ class AssetApiTest extends TestCase
         $this->post("{$base}/1/file", ['file' => UploadedFile::fake()->create('clip.mp4', 4, 'video/mp4')], [
             'Accept' => 'application/json',
         ])->assertUnauthorized();
+        $this->postJson("{$base}/1/analyze")->assertUnauthorized();
+        $this->get("{$base}/1/preview", ['Accept' => 'application/json'])->assertUnauthorized();
         $this->deleteJson("{$base}/1")->assertUnauthorized();
     }
 

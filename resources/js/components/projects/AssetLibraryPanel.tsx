@@ -123,6 +123,13 @@ export const AssetLibraryPanel: React.FC<AssetLibraryPanelProps> = ({ projectId 
     }
   };
 
+  // An analysis changes only technical metadata, so the open panel takes the
+  // refreshed asset directly and the list is left alone. Reloading here would
+  // swap the row under a modal the user is still reading.
+  const handleAnalyzed = (updated: Asset) => {
+    setDetailAsset(updated);
+  };
+
   const handleUploaded = (updated: Asset) => {
     setUploadAsset(null);
     setSuccessMessage(
@@ -335,7 +342,14 @@ export const AssetLibraryPanel: React.FC<AssetLibraryPanelProps> = ({ projectId 
       )}
 
       {/* Detail Modal */}
-      {detailAsset && <AssetDetailModal asset={detailAsset} onClose={() => setDetailAsset(null)} />}
+      {detailAsset && (
+        <AssetDetailModal
+          projectId={projectId}
+          asset={detailAsset}
+          onClose={() => setDetailAsset(null)}
+          onAnalyzed={handleAnalyzed}
+        />
+      )}
 
       {/* Delete Confirmation Modal */}
       {deleteAsset && (

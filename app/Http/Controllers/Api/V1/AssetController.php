@@ -13,11 +13,14 @@ use App\Http\Resources\AssetResource;
 use App\Models\Asset;
 use App\Models\ContentProject;
 use App\Services\AssetFileStorageService;
+use App\Services\AssetMetadataService;
 use App\Services\AssetService;
 use App\Traits\ApiResponse;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Gate;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\HeaderUtils;
 use Throwable;
 
 class AssetController extends Controller
@@ -26,7 +29,8 @@ class AssetController extends Controller
 
     public function __construct(
         protected AssetService $assetService,
-        protected AssetFileStorageService $fileStorage
+        protected AssetFileStorageService $fileStorage,
+        protected AssetMetadataService $metadata
     ) {}
 
     /**
@@ -144,11 +148,101 @@ class AssetController extends Controller
             return $this->errorResponse('The file could not be stored.', null, 500);
         }
 
+        // Measured straight after the write, while the request is already open,
+        // because FFprobe reads only container headers and answers in
+        // milliseconds for the sizes this studio handles. A queue would leave a
+        // fresh upload in an unknown state waiting for a worker, and an
+        // inspection that fails here does not fail the upload: it records a
+        // failed metadata_status the user can retry with the Analyze action.
+        if ((bool) config('assets.metadata.analyse_on_upload', true)) {
+            $model = $this->metadata->analyse($model->fresh() ?? $model);
+        }
+
         return $this->successResponse(
             new AssetResource($model->fresh()),
             'File uploaded successfully.',
             200
         );
+    }
+
+    /**
+     * Measure the attached file again.
+     *
+     * Technical inspection only. This reads the stored file and writes back
+     * width, height, duration, aspect ratio and the measurement status. It
+     * cannot change the asset's type or its lifecycle status, attach a
+     * requirement, mark fulfillment or approve anything, and it never touches
+     * the physical file. A failed measurement is a status the user can see and
+     * retry, not an error response: the asset is unchanged either way.
+     */
+    public function analyze(ContentProject $project, int $asset): JsonResponse
+    {
+        try {
+            $model = $this->assetService->findAsset($project, $asset);
+        } catch (ModelNotFoundException $e) {
+            return $this->errorResponse($e->getMessage(), null, 404);
+        }
+
+        Gate::authorize('update', $model);
+
+        return $this->successResponse(
+            new AssetResource($this->metadata->analyse($model)),
+            'Technical metadata refreshed.',
+            200
+        );
+    }
+
+    /**
+     * Stream the stored file for preview.
+     *
+     * This is the only way the bytes of a private asset leave the server, and
+     * it exists instead of a public URL precisely because the file has to stay
+     * private. Three things follow from that, and each is deliberate.
+     *
+     * The asset is resolved through the project's own relation before anything
+     * else, so an id belonging to another project is not there and answers 404,
+     * and the policy then decides whether this user may read it at all.
+     *
+     * The only source of what to serve is the asset row: the endpoint takes no
+     * query parameters and no filename, so there is nothing for a caller to
+     * redirect at another file, and the Content-Type comes from the stored MIME
+     * type detected from the file's contents at upload, never from the request.
+     *
+     * Only types the upload rules accept are served. That is what keeps an HTML
+     * or SVG row from coming back as a document the browser would execute, since
+     * both would render inline on this application's own origin.
+     */
+    public function preview(ContentProject $project, int $asset): BinaryFileResponse|JsonResponse
+    {
+        try {
+            $model = $this->assetService->findAsset($project, $asset);
+        } catch (ModelNotFoundException $e) {
+            return $this->errorResponse($e->getMessage(), null, 404);
+        }
+
+        Gate::authorize('view', $model);
+
+        $path = (string) $model->file_path;
+
+        if ($path === '' || ! $this->metadata->isPreviewableMimeType($model->mime_type)) {
+            return $this->errorResponse('This asset has no file that can be previewed.', null, 404);
+        }
+
+        // The stored path is resolved against the asset directory before it is
+        // touched, so a corrupted row cannot aim this endpoint at a file
+        // elsewhere on the server.
+        if (! $this->metadata->isInsideAssetDirectory($path) || ! $this->fileStorage->disk()->exists($path)) {
+            return $this->errorResponse('The stored file for this asset could not be found.', null, 404);
+        }
+
+        return response()->file($this->fileStorage->disk()->path($path), [
+            'Content-Type' => (string) $model->mime_type,
+            'Content-Disposition' => HeaderUtils::DISPOSITION_INLINE.'; filename="'.addslashes((string) $model->file_name).'"',
+            // Stops a browser from sniffing the bytes into a type that could be
+            // interpreted as a document or a script.
+            'X-Content-Type-Options' => 'nosniff',
+            'Cache-Control' => 'private, max-age=0, must-revalidate',
+        ]);
     }
 
     /**

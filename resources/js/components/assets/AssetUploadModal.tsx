@@ -3,7 +3,7 @@ import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Asset, AssetType } from '../../types';
 import { assetService } from '../../services/assetService';
-import { formatFileSize } from './AssetCard';
+import { formatFileSize } from '../../utils/assetFormat';
 import { AlertCircle, CheckCircle2, Loader2, UploadCloud, X } from 'lucide-react';
 
 export interface AssetUploadModalProps {

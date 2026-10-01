@@ -88,4 +88,51 @@ export const assetService = {
     );
     return response.data.data;
   },
+
+  /**
+   * Asks the server to measure the attached file again.
+   *
+   * The endpoint reads only the stored file. It cannot change the asset's type,
+   * its lifecycle status, its requirements or the file itself, so this is safe
+   * to offer as a plain retry for a failed measurement.
+   */
+  async analyze(projectId: number, assetId: number): Promise<Asset> {
+    const response = await apiClient.post<ApiResponse<Asset>>(
+      `${basePath(projectId)}/${assetId}/analyze`,
+    );
+    return response.data.data;
+  },
+
+  /**
+   * Loads a preview of the attached file and returns an object URL for it.
+   *
+   * The bytes are fetched through the authenticated client rather than handed
+   * to an <img> or <video> as a plain src. Both of those can only send cookies,
+   * and this API authenticates with a bearer token held in localStorage, so a
+   * direct src would come back 401. Fetching here also means the caller
+   * revokes the URL when it is done instead of leaving one alive per asset.
+   *
+   * The caller owns the returned URL and must call revokeAssetPreview on it.
+   */
+  async fetchPreview(projectId: number, assetId: number): Promise<string> {
+    const response = await apiClient.get<Blob>(
+      `${basePath(projectId)}/${assetId}/preview`,
+      { responseType: 'blob' },
+    );
+
+    return URL.createObjectURL(response.data);
+  },
 };
+
+/**
+ * Releases an object URL created by fetchPreview.
+ *
+ * A blob URL holds its blob alive until it is revoked, so a detail panel
+ * opened and closed repeatedly would otherwise keep every file it ever loaded
+ * in memory for the rest of the session.
+ */
+export function revokeAssetPreview(objectUrl: string | null): void {
+  if (objectUrl) {
+    URL.revokeObjectURL(objectUrl);
+  }
+}

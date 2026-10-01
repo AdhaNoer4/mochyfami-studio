@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\AssetMetadataStatus;
 use App\Enums\AssetType;
 use App\Exceptions\AssetFileStorageException;
 use App\Exceptions\InvalidAssetFileTypeException;
@@ -165,11 +166,29 @@ class AssetFileStorageService
         $stored = $this->store($asset, $file);
 
         try {
-            $asset->fill([
+            // forceFill, not fill: the technical metadata columns are
+            // deliberately not mass assignable, because nothing in a request
+            // may write them. This is the one place that legitimately does.
+            $asset->forceFill([
                 'file_path' => $stored['path'],
                 'file_name' => $stored['file_name'],
                 'mime_type' => $stored['mime_type'],
                 'file_size' => $stored['file_size'],
+                // The technical metadata belonged to the file that just lost
+                // its place. Carrying it over would leave the asset claiming,
+                // say, 1920x1080 for thirty seconds while actually holding a
+                // portrait clip of ten, which is worse than having nothing:
+                // it reads like a measurement. Pending says the truth, that a
+                // new file is attached and has not been measured yet, and the
+                // caller replaces it with a real analysis as soon as the
+                // database write below succeeds.
+                'metadata_status' => AssetMetadataStatus::Pending,
+                'width' => null,
+                'height' => null,
+                'duration_seconds' => null,
+                'aspect_ratio' => null,
+                'metadata_error' => null,
+                'metadata_analyzed_at' => null,
             ])->save();
         } catch (Throwable $e) {
             // The new file now has no metadata pointing at it, so it is an

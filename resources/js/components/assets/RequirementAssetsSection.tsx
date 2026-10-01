@@ -5,7 +5,8 @@ import { Asset, AssetType } from '../../types';
 import { assetService } from '../../services/assetService';
 import { assetRequirementService } from '../../services/assetRequirementService';
 import { getApiErrorMessage } from '../../services/researchService';
-import { getAssetStatusVariant, formatFileSize, formatDimensions } from './AssetCard';
+import { getAssetStatusVariant } from './AssetCard';
+import { formatFileSize, formatDimensions } from '../../utils/assetFormat';
 import {
   AlertCircle,
   CheckCircle2,
@@ -192,7 +193,7 @@ export const RequirementAssetsSection: React.FC<RequirementAssetsSectionProps> =
   const renderAttachedRow = (asset: Asset) => {
     const TypeIcon = getTypeIcon(asset.type);
     const fileSize = formatFileSize(asset.file_size);
-    const dimensions = formatDimensions(asset);
+    const dimensions = formatDimensions(asset.width, asset.height);
 
     return (
       <div

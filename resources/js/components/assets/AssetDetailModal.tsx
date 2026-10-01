@@ -1,14 +1,24 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
 import { Asset } from '../../types';
-import { getAssetStatusVariant, formatFileSize, formatDimensions } from './AssetCard';
-import { X, FileText } from 'lucide-react';
+import { assetService } from '../../services/assetService';
+import { getAssetStatusVariant } from './AssetCard';
+import {
+  formatFileSize,
+  formatDimensions,
+  formatDuration,
+  formatAspectRatioLabel,
+} from '../../utils/assetFormat';
+import { AssetPreview } from './AssetPreview';
+import { X, FileText, RefreshCw, Loader2, AlertCircle } from 'lucide-react';
 
 export interface AssetDetailModalProps {
+  projectId: number;
   asset: Asset;
   onClose: () => void;
+  onAnalyzed: (asset: Asset) => void;
 }
 
 interface DetailRowProps {
@@ -48,15 +58,47 @@ const DetailGroup: React.FC<{ title: string; children: React.ReactNode }> = ({
 );
 
 /**
- * Read only.
+ * How the measurement is going, in the user's terms.
  *
- * There is no playback, no download button, and no preview url. The file is
- * stored privately and is not served, so there is no URL to render from, and
- * the panel sticks to the metadata that describes it.
+ * A failure shows the reason because "something went wrong" gives the user
+ * nothing to act on, and they are the one who can fix it by uploading a
+ * different file.
  */
-export const AssetDetailModal: React.FC<AssetDetailModalProps> = ({ asset, onClose }) => {
+const METADATA_NOTES: Record<string, { variant: 'emerald' | 'amber' | 'rose'; label: string }> = {
+  completed: { variant: 'emerald', label: 'Measured' },
+  pending: { variant: 'amber', label: 'Not measured yet' },
+  failed: { variant: 'rose', label: 'Could not be measured' },
+};
+
+export const AssetDetailModal: React.FC<AssetDetailModalProps> = ({
+  projectId,
+  asset,
+  onClose,
+  onAnalyzed,
+}) => {
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analyzeError, setAnalyzeError] = useState<string | null>(null);
+
   const fileSize = formatFileSize(asset.file_size);
-  const dimensions = formatDimensions(asset);
+  const dimensions = formatDimensions(asset.width, asset.height);
+  const duration = formatDuration(asset.duration_seconds);
+  const aspectRatio = formatAspectRatioLabel(asset.aspect_ratio);
+  const metadataNote = asset.metadata_status ? METADATA_NOTES[asset.metadata_status] : null;
+  const canAnalyze = Boolean(asset.has_file);
+
+  const handleAnalyze = async () => {
+    setAnalyzing(true);
+    setAnalyzeError(null);
+
+    try {
+      const refreshed = await assetService.analyze(projectId, asset.id);
+      onAnalyzed(refreshed);
+    } catch {
+      setAnalyzeError('The file could not be analyzed. Check that it is still attached and try again.');
+    } finally {
+      setAnalyzing(false);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center p-4 bg-slate-950/80 backdrop-blur-sm overflow-y-auto">
@@ -96,6 +138,8 @@ export const AssetDetailModal: React.FC<AssetDetailModalProps> = ({ asset, onClo
           <p className="text-xs text-slate-300 leading-relaxed">{asset.description}</p>
         )}
 
+        {asset.has_file && <AssetPreview projectId={projectId} asset={asset} />}
+
         <div className="space-y-1">
           <DetailRow label="Asset ID" value={asset.id} />
           <DetailRow label="Project" value={asset.content_project_id} />
@@ -104,22 +148,38 @@ export const AssetDetailModal: React.FC<AssetDetailModalProps> = ({ asset, onClo
         </div>
 
         <DetailGroup title="File">
-          <DetailRow label="Attached" value={asset.file_name ? 'Yes' : null} />
+          <DetailRow label="Attached" value={asset.has_file ? 'Yes' : null} />
           <DetailRow label="File Name" value={asset.file_name} />
           <DetailRow label="MIME Type" value={asset.mime_type} />
           <DetailRow label="File Size" value={fileSize} />
         </DetailGroup>
 
-        <DetailGroup title="Media">
+        <DetailGroup title="Technical Metadata">
           <DetailRow
-            label="Duration"
+            label="Status"
             value={
-              asset.duration_seconds !== null && asset.duration_seconds !== undefined
-                ? `${asset.duration_seconds} seconds`
-                : null
+              metadataNote ? (
+                <Badge variant={metadataNote.variant} size="sm">
+                  {metadataNote.label}
+                </Badge>
+              ) : null
             }
           />
+          {/* An image with no width is a broken measurement, not a missing
+              optional field, so only a real dimension is ever shown. */}
           <DetailRow label="Dimensions" value={dimensions} />
+          <DetailRow label="Duration" value={duration ? `${asset.duration_seconds} seconds` : null} />
+          <DetailRow label="Aspect Ratio" value={aspectRatio} />
+          <DetailRow
+            label="Measured At"
+            value={asset.metadata_analyzed_at ? new Date(asset.metadata_analyzed_at).toLocaleString() : null}
+          />
+          {asset.metadata_error && (
+            <div className="flex items-start gap-2 py-1.5 text-[11px] text-amber-400/90">
+              <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-px" />
+              <span>{asset.metadata_error}</span>
+            </div>
+          )}
         </DetailGroup>
 
         <DetailGroup title="Source">
@@ -132,6 +192,27 @@ export const AssetDetailModal: React.FC<AssetDetailModalProps> = ({ asset, onClo
         <DetailGroup title="Notes">
           <DetailRow label="Notes" value={asset.notes} />
         </DetailGroup>
+
+        {analyzeError && (
+          <div className="flex items-start gap-2 p-3 mt-4 rounded-lg bg-rose-950/40 border border-rose-800/50 text-rose-300 text-xs">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>{analyzeError}</span>
+          </div>
+        )}
+
+        {canAnalyze && (
+          <div className="flex justify-end mt-5 pt-4 border-t border-slate-800/60">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleAnalyze}
+              disabled={analyzing}
+              icon={analyzing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+            >
+              {analyzing ? 'Analyzing' : 'Analyze'}
+            </Button>
+          </div>
+        )}
       </Card>
     </div>
   );

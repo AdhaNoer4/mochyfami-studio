@@ -3,6 +3,7 @@ import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
 import { Asset, AssetStatus, AssetType } from '../../types';
+import { formatFileSize, formatDimensions, formatDuration } from '../../utils/assetFormat';
 import {
   FileText,
   Music,
@@ -13,6 +14,7 @@ import {
   Paperclip,
   Trash2,
   UploadCloud,
+  AlertCircle,
 } from 'lucide-react';
 
 export interface AssetCardProps {
@@ -31,12 +33,11 @@ const TYPE_ICONS: Record<AssetType, React.ElementType> = {
 };
 
 /**
- * A type glyph only, and it stays a glyph now that files exist too.
+ * A type glyph on the card, with the real file in the detail panel behind it.
  *
- * Files are stored privately and are not served, so there is no URL to render
- * a real thumbnail or player from. Drawing a stand-in would show the user
- * something that is not their asset; the attached-file indicator below is the
- * honest version of that information.
+ * The card stays a glyph because rendering the file here would mean loading
+ * every asset's bytes just to draw a grid, and the file sizes involved make
+ * that a page that opens slowly at best.
  */
 function getTypeIcon(type: AssetType) {
   return TYPE_ICONS[type] || FileText;
@@ -60,39 +61,6 @@ export function getAssetStatusVariant(status: AssetStatus) {
   }
 }
 
-/**
- * Human readable file size. Returns null for a missing size so the card can
- * omit the row entirely rather than print "0 B" for an asset that simply has
- * no file recorded.
- */
-export function formatFileSize(bytes?: number | null) {
-  if (bytes === null || bytes === undefined) {
-    return null;
-  }
-
-  if (bytes < 1024) {
-    return `${bytes} B`;
-  }
-
-  const units = ['KB', 'MB', 'GB', 'TB'];
-  let value = bytes / 1024;
-  let unitIndex = 0;
-
-  while (value >= 1024 && unitIndex < units.length - 1) {
-    value /= 1024;
-    unitIndex += 1;
-  }
-
-  return `${value.toFixed(1)} ${units[unitIndex]}`;
-}
-
-export function formatDimensions(asset: Asset) {
-  if (!asset.width || !asset.height) {
-    return null;
-  }
-  return `${asset.width} x ${asset.height}`;
-}
-
 export const AssetCard: React.FC<AssetCardProps> = ({
   asset,
   onView,
@@ -102,8 +70,9 @@ export const AssetCard: React.FC<AssetCardProps> = ({
 }) => {
   const TypeIcon = getTypeIcon(asset.type);
   const fileSize = formatFileSize(asset.file_size);
-  const dimensions = formatDimensions(asset);
-  const hasFile = Boolean(asset.file_name);
+  const dimensions = formatDimensions(asset.width, asset.height);
+  const duration = formatDuration(asset.duration_seconds);
+  const hasFile = Boolean(asset.has_file ?? asset.file_name);
   // An Other asset cannot hold a file, so offering the action would only lead
   // to a rejection the user could have been spared.
   const acceptsFile = asset.type !== 'other';
@@ -151,6 +120,15 @@ export const AssetCard: React.FC<AssetCardProps> = ({
             <span className="text-[10px] text-slate-600">No file attached</span>
           )
         )}
+        {asset.metadata_status === 'failed' && (
+          <span
+            className="inline-flex items-center gap-1 text-[10px] text-amber-400"
+            title={asset.metadata_error || 'The attached file could not be measured.'}
+          >
+            <AlertCircle className="w-3 h-3" />
+            Not measured
+          </span>
+        )}
       </div>
 
       {asset.description && (
@@ -162,9 +140,7 @@ export const AssetCard: React.FC<AssetCardProps> = ({
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-slate-500 mt-3">
         {fileSize && <span>{fileSize}</span>}
         {dimensions && <span>{dimensions}</span>}
-        {asset.duration_seconds !== null && asset.duration_seconds !== undefined && (
-          <span>{asset.duration_seconds}s</span>
-        )}
+        {duration && <span>{duration}</span>}
         {asset.source_name && (
           <span className="truncate max-w-[10rem]" title={asset.source_name}>
             {asset.source_name}

@@ -121,6 +121,12 @@ export const AssetFormModal: React.FC<AssetFormModalProps> = ({
 }) => {
   const isEditing = asset !== null;
 
+  // With a file on disk the server owns every measurement of it, so these
+  // fields describe nothing the user can meaningfully set. `file_path` is
+  // never published, so `has_file` is the authoritative signal; `file_name` is
+  // the fallback for a response that predates that field.
+  const hasAttachedFile = Boolean(asset?.has_file ?? asset?.file_name);
+
   const [form, setForm] = useState<AssetFormState>(emptyForm);
   const [errors, setErrors] = useState<Record<string, string[]>>({});
   const [generalError, setGeneralError] = useState<string | null>(null);
@@ -152,12 +158,19 @@ export const AssetFormModal: React.FC<AssetFormModalProps> = ({
       type: form.type,
       title: toNullableString(form.title),
       description: toNullableString(form.description),
-      file_name: toNullableString(form.file_name),
-      mime_type: toNullableString(form.mime_type),
-      file_size: toNumberOrNull(form.file_size),
-      duration_seconds: toNumberOrNull(form.duration_seconds),
-      width: toNumberOrNull(form.width),
-      height: toNumberOrNull(form.height),
+      // Only sent while nothing is attached. Once the server holds the file it
+      // measures these itself, and a stale value typed here would contradict
+      // the file on disk until the next Analyze.
+      ...(hasAttachedFile
+        ? {}
+        : {
+            file_name: toNullableString(form.file_name),
+            mime_type: toNullableString(form.mime_type),
+            file_size: toNumberOrNull(form.file_size),
+            duration_seconds: toNumberOrNull(form.duration_seconds),
+            width: toNumberOrNull(form.width),
+            height: toNumberOrNull(form.height),
+          }),
       source_url: toNullableString(form.source_url),
       source_name: toNullableString(form.source_name),
       license_type: toNullableString(form.license_type),
@@ -193,8 +206,9 @@ export const AssetFormModal: React.FC<AssetFormModalProps> = ({
               {isEditing ? 'Edit Asset Metadata' : 'Add Asset Metadata'}
             </h3>
             <p className="text-[11px] text-slate-400 mt-0.5">
-              Records what this media resource is. Uploading a file is done from the Asset Library;
-              the file fields below describe a file that is already attached.
+              Records what this media resource is. Uploading a file is done from the Asset Library.
+              Dimensions, duration and file size are not editable here: they are measured from the
+              stored file by the server and are shown read-only on the asset's detail panel.
             </p>
           </div>
         </div>
@@ -260,114 +274,6 @@ export const AssetFormModal: React.FC<AssetFormModalProps> = ({
                 className={inputClasses}
               />
               {fieldError('description')}
-            </div>
-          </div>
-
-          {/* File */}
-          <div className="space-y-3 pt-4 border-t border-slate-800/60">
-            <h4 className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-              File
-            </h4>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className={labelClasses} htmlFor="asset-file-name">
-                  File Name
-                </label>
-                <input
-                  id="asset-file-name"
-                  type="text"
-                  value={form.file_name}
-                  onChange={(e) => handleChange('file_name', e.target.value)}
-                  className={inputClasses}
-                />
-                {fieldError('file_name')}
-              </div>
-
-              <div>
-                <label className={labelClasses} htmlFor="asset-mime-type">
-                  MIME Type
-                </label>
-                <input
-                  id="asset-mime-type"
-                  type="text"
-                  value={form.mime_type}
-                  onChange={(e) => handleChange('mime_type', e.target.value)}
-                  className={inputClasses}
-                />
-                {fieldError('mime_type')}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className={labelClasses} htmlFor="asset-file-size">
-                  File Size (bytes)
-                </label>
-                <input
-                  id="asset-file-size"
-                  type="number"
-                  min={0}
-                  value={form.file_size}
-                  onChange={(e) => handleChange('file_size', e.target.value)}
-                  className={inputClasses}
-                />
-                {fieldError('file_size')}
-              </div>
-
-              <div>
-                <label className={labelClasses} htmlFor="asset-duration">
-                  Duration (seconds)
-                </label>
-                <input
-                  id="asset-duration"
-                  type="number"
-                  min={0}
-                  value={form.duration_seconds}
-                  onChange={(e) => handleChange('duration_seconds', e.target.value)}
-                  className={inputClasses}
-                />
-                {fieldError('duration_seconds')}
-              </div>
-            </div>
-          </div>
-
-          {/* Media */}
-          <div className="space-y-3 pt-4 border-t border-slate-800/60">
-            <h4 className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-              Media
-            </h4>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className={labelClasses} htmlFor="asset-width">
-                  Width (px)
-                </label>
-                <input
-                  id="asset-width"
-                  type="number"
-                  min={1}
-                  value={form.width}
-                  onChange={(e) => handleChange('width', e.target.value)}
-                  className={inputClasses}
-                />
-                {fieldError('width')}
-              </div>
-
-              <div>
-                <label className={labelClasses} htmlFor="asset-height">
-                  Height (px)
-                </label>
-                <input
-                  id="asset-height"
-                  type="number"
-                  min={1}
-                  value={form.height}
-                  onChange={(e) => handleChange('height', e.target.value)}
-                  className={inputClasses}
-                />
-                {fieldError('height')}
-              </div>
             </div>
           </div>
 

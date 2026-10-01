@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\AssetMetadataStatus;
 use App\Enums\AssetStatus;
 use App\Enums\AssetType;
 use Database\Factories\AssetFactory;
@@ -25,6 +26,12 @@ class Asset extends Model
      * lives, but it is never read from a request and never exposed through
      * the API resource: it is a server side location, not client facing
      * metadata.
+     *
+     * aspect_ratio, metadata_status, metadata_error, and metadata_analyzed_at
+     * are absent for the same reason, and for a stronger one: they describe
+     * the file rather than the asset, so they are only ever written by
+     * inspection of a stored file. Leaving them fillable would let a metadata
+     * request claim a video is 1920x1080 without anyone having opened it.
      */
     protected $fillable = [
         'type',
@@ -50,11 +57,41 @@ class Asset extends Model
         return [
             'type' => AssetType::class,
             'status' => AssetStatus::class,
+            'metadata_status' => AssetMetadataStatus::class,
             'file_size' => 'integer',
             'duration_seconds' => 'integer',
             'width' => 'integer',
             'height' => 'integer',
+            // decimal:4 keeps the value in the resource as a number rather
+            // than the "1.7778" string PDO would otherwise hand back, so the
+            // frontend can compare and format it without parsing.
+            'aspect_ratio' => 'decimal:4',
+            'metadata_analyzed_at' => 'datetime',
         ];
+    }
+
+    /**
+     * True once a file is attached and analysis has not yet produced metadata.
+     *
+     * This is the stale case: the asset has a file, and whatever dimensions or
+     * duration it shows describe an older file or nothing at all.
+     */
+    public function hasStaleMetadata(): bool
+    {
+        return $this->file_path !== null
+            && $this->metadata_status !== AssetMetadataStatus::Completed;
+    }
+
+    /**
+     * True when the asset claims a file that is not on the disk.
+     *
+     * Only the library can actually answer this, since it needs the disk, but
+     * the row already carries enough information for the UI to say "this looks
+     * wrong" without another request.
+     */
+    public function hasFileAttached(): bool
+    {
+        return $this->file_path !== null && trim($this->file_path) !== '';
     }
 
     public function project(): BelongsTo

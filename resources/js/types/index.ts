@@ -842,6 +842,15 @@ export type AssetStatus = 'pending' | 'available' | 'processing' | 'approved' | 
  * file_name or mime_type is the normal state, and `status` describes where the
  * asset sits in the media pipeline rather than a verified file.
  */
+/**
+ * Whether the server has been able to measure the file.
+ *
+ * `null` means no analysis has run yet, which is a different thing from a
+ * failed one and is kept distinct so the UI can suggest the Analyze action
+ * for the first and report the reason for the second.
+ */
+export type AssetMetadataStatus = 'pending' | 'completed' | 'failed';
+
 export interface Asset {
   id: number;
   content_project_id: number;
@@ -857,6 +866,13 @@ export interface Asset {
   duration_seconds?: number | null;
   width?: number | null;
   height?: number | null;
+  aspect_ratio?: number | null;
+  metadata_status?: AssetMetadataStatus | null;
+  metadata_status_label?: string | null;
+  metadata_error?: string | null;
+  metadata_analyzed_at?: string | null;
+  has_file?: boolean;
+  preview_url?: string | null;
   source_url?: string | null;
   source_name?: string | null;
   license_type?: string | null;
@@ -869,6 +885,14 @@ export interface Asset {
 /**
  * `status` is absent on purpose. The server decides it, and an update can
  * never move an asset along its lifecycle.
+ *
+ * `aspect_ratio` and every `metadata_*` field are absent for the same reason:
+ * they are only ever measured, never declared.
+ *
+ * The file fields below are different. They are how an asset is catalogued
+ * before anything has been uploaded to it, and they carry a declared
+ * description of a file that may not exist here yet. Once a file is attached
+ * the server measures these itself, and the form stops sending them.
  */
 export interface AssetFormData {
   type: AssetType;

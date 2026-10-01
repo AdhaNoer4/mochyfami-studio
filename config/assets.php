@@ -123,4 +123,35 @@ return [
         ],
 
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Technical Metadata
+    |--------------------------------------------------------------------------
+    |
+    | Whether an upload is followed immediately by an inspection, and how that
+    | inspection reaches FFprobe.
+    |
+    | analyse_on_upload is true because FFprobe reads only container headers and
+    | answers in milliseconds for the file sizes this studio handles. It
+    | deliberately does not queue anything: a queue would mean a freshly
+    | uploaded asset sits in an unknown state waiting for a worker, and the
+    | dimensions it will eventually report are cheap enough to have now. An
+    | inspection that fails never fails the upload; it records a failed
+    | metadata_status and the user can retry from the Analyze action.
+    |
+    | ffprobe_binary is configuration rather than a literal in the inspector
+    | because the executable's name is the one part of this that differs
+    | between machines. Leave it as "ffprobe" where it is on PATH, and point
+    | it at an absolute path elsewhere. FFprobe is used for inspection only:
+    | nothing here transcodes, remuxes, or writes to the file.
+    |
+    */
+
+    'metadata' => [
+        'analyse_on_upload' => true,
+        'ffprobe_binary' => env('ASSET_FFPROBE_BINARY', 'ffprobe'),
+        'timeout_seconds' => 30,
+    ],
+
 ];
