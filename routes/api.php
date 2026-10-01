@@ -136,6 +136,11 @@ Route::prefix('v1')->group(function () {
                 Route::get('items/{item}/asset-requirements/{requirement}/assets', [VisualPlanAssetRequirementController::class, 'assets'])->whereNumber(['item', 'requirement']);
                 Route::post('items/{item}/asset-requirements/{requirement}/assets', [VisualPlanAssetRequirementController::class, 'attachAsset'])->whereNumber(['item', 'requirement']);
                 Route::delete('items/{item}/asset-requirements/{requirement}/assets/{asset}', [VisualPlanAssetRequirementController::class, 'detachAsset'])->whereNumber(['item', 'requirement', 'asset']);
+                Route::get('items/{item}/asset-requirements/{requirement}/assets/{asset}/compatibility', [VisualPlanAssetRequirementController::class, 'compatibility'])->whereNumber(['item', 'requirement', 'asset']);
+
+                Route::post('items/{item}/asset-requirements/{requirement}/select', [VisualPlanAssetRequirementController::class, 'selectAsset'])->whereNumber(['item', 'requirement']);
+                Route::delete('items/{item}/asset-requirements/{requirement}/select', [VisualPlanAssetRequirementController::class, 'clearSelection'])->whereNumber(['item', 'requirement']);
+                Route::post('items/{item}/asset-requirements/{requirement}/fulfill', [VisualPlanAssetRequirementController::class, 'fulfill'])->whereNumber(['item', 'requirement']);
             });
         });
     });

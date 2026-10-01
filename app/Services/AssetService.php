@@ -5,8 +5,11 @@ namespace App\Services;
 use App\Enums\AssetStatus;
 use App\Models\Asset;
 use App\Models\ContentProject;
+use App\Services\Assets\AssetRequirementFulfillmentService;
+use Illuminate\Contracts\Container\Container;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Support\Facades\DB;
 
 class AssetService
 {
@@ -18,7 +21,16 @@ class AssetService
      *                                          for Storage directly.
      */
     public function __construct(
-        protected AssetFileStorageService $files
+        protected AssetFileStorageService $files,
+        /**
+         * Resolved from the container rather than type hinted, because the
+         * fulfillment service needs this class to look assets up inside a
+         * project. Hinting it would make the two services depend on each
+         * other's construction and leave one of them permanently unbuildable.
+         * There is no cycle at call time, because releaseSelectionFromAsset
+         * only needs an Asset it is handed.
+         */
+        protected Container $container
     ) {}
 
     /**
@@ -202,7 +214,17 @@ class AssetService
     {
         $filePath = $asset->file_path;
 
-        $asset->delete();
+        DB::transaction(function () use ($asset) {
+            // While the asset still exists, find out which requirements were
+            // fulfilled on the strength of it. The foreign key nulls the
+            // selection on delete, but a row left reading fulfilled with
+            // nothing selected would claim a fulfillment it no longer has,
+            // and that would only be noticed as a data problem later.
+            $this->container->make(AssetRequirementFulfillmentService::class)
+                ->releaseSelectionFromAsset($asset);
+
+            $asset->delete();
+        });
 
         $this->files->deleteQuietly($filePath);
     }

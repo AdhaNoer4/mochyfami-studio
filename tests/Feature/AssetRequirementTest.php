@@ -518,6 +518,7 @@ class AssetRequirementTest extends TestCase
             'searching to pending' => [AssetRequirementStatus::Searching, AssetRequirementStatus::Pending],
             'searching to skipped' => [AssetRequirementStatus::Searching, AssetRequirementStatus::Skipped],
             'skipped to pending' => [AssetRequirementStatus::Skipped, AssetRequirementStatus::Pending],
+            'fulfilled back to searching' => [AssetRequirementStatus::Fulfilled, AssetRequirementStatus::Searching],
         ];
     }
 
@@ -547,7 +548,7 @@ class AssetRequirementTest extends TestCase
             'pending cannot be fulfilled directly' => [AssetRequirementStatus::Pending, AssetRequirementStatus::Fulfilled],
             'skipped cannot be fulfilled' => [AssetRequirementStatus::Skipped, AssetRequirementStatus::Fulfilled],
             'skipped cannot start searching' => [AssetRequirementStatus::Skipped, AssetRequirementStatus::Searching],
-            'fulfilled is terminal' => [AssetRequirementStatus::Fulfilled, AssetRequirementStatus::Pending],
+            'fulfilled cannot go to pending' => [AssetRequirementStatus::Fulfilled, AssetRequirementStatus::Pending],
             'fulfilled cannot be skipped' => [AssetRequirementStatus::Fulfilled, AssetRequirementStatus::Skipped],
         ];
     }
@@ -602,9 +603,9 @@ class AssetRequirementTest extends TestCase
     }
 
     #[Test]
-    public function a_fulfilled_requirement_offers_no_further_transitions(): void
+    public function a_fulfilled_requirement_can_reopen_for_searching(): void
     {
-        $this->assertSame([], AssetRequirementStatus::Fulfilled->allowedTransitions());
+        $this->assertSame([AssetRequirementStatus::Searching], AssetRequirementStatus::Fulfilled->allowedTransitions());
     }
 
     #[Test]

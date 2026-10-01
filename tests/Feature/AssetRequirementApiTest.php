@@ -654,7 +654,8 @@ class AssetRequirementApiTest extends TestCase
         $this->actingAs($user, 'sanctum')
             ->getJson($this->url($project, 1, $item->id))
             ->assertOk()
-            ->assertJsonCount(0, 'data.requirements.0.allowed_transitions');
+            ->assertJsonCount(1, 'data.requirements.0.allowed_transitions')
+            ->assertJsonPath('data.requirements.0.allowed_transitions.0.status', 'searching');
     }
 
     #[Test]

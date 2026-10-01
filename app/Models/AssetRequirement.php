@@ -23,6 +23,7 @@ class AssetRequirement extends Model
         'description',
         'target_duration_seconds',
         'aspect_ratio',
+        'selected_asset_id',
         'status',
         'notes',
     ];
@@ -58,5 +59,28 @@ class AssetRequirement extends Model
     public function assets(): BelongsToMany
     {
         return $this->belongsToMany(Asset::class, 'asset_requirement_asset')->withTimestamps();
+    }
+
+    /**
+     * The one candidate the user chose, if any.
+     *
+     * This is a decision, not an association. The assets() pivot above answers
+     * "which assets could work", and this answers "which one was chosen", and
+     * the two are allowed to disagree: a selected asset may be one of several
+     * candidates, and a requirement may have candidates but no selection.
+     *
+     * Selection also does not mean fulfilled. A requirement becomes fulfilled
+     * only by an explicit fulfill action that first re-runs the compatibility
+     * checks, because picking the closest candidate is not the same as
+     * declaring it good enough.
+     *
+     * There is no inverse "selectedByRequirements" relation to add here. When
+     * the asset is deleted the foreign key nulls and this requirement needs to
+     * stop claiming a fulfillment, so AssetService looks requirements up from
+     * the asset side directly instead.
+     */
+    public function selectedAsset(): BelongsTo
+    {
+        return $this->belongsTo(Asset::class, 'selected_asset_id');
     }
 }

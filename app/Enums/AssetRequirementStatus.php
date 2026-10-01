@@ -22,8 +22,18 @@ enum AssetRequirementStatus: string
     /**
      * The single authoritative definition of reachable statuses.
      *
-     * Fulfilled is deliberately terminal. Returning it to pending would imply
-     * an asset was unassigned, and no asset unassignment workflow exists yet.
+     * Fulfilled is not terminal, and the one way back out is to searching. A
+     * requirement is fulfilled on the strength of a selected asset, so when
+     * that asset stops being usable the requirement has to stop claiming to be
+     * fulfilled. Deleting the selected asset is the concrete case: the foreign
+     * key nulls out, and the row is left to say so rather than sitting on a
+     * fulfillment backed by nothing.
+     *
+     * The way back is deliberately not to pending. A requirement that was
+     * being worked on has already been picked up, and losing its asset does not
+     * un-pick it. Skipped is also unreachable from here for the same reason it
+     * is reachable from searching: skipping is a decision about the
+     * requirement, not about the asset that happened to fail.
      *
      * @return array<int, self>
      */
@@ -32,8 +42,30 @@ enum AssetRequirementStatus: string
         return match ($this) {
             self::Pending => [self::Searching, self::Skipped],
             self::Searching => [self::Fulfilled, self::Pending, self::Skipped],
-            self::Fulfilled => [],
+            self::Fulfilled => [self::Searching],
             self::Skipped => [self::Pending],
+        };
+    }
+
+    /**
+     * The action label differs by direction, because the same target status
+     * means different things depending on where it is coming from.
+     *
+     * Moving into searching is the user opening the requirement up to work on
+     * it; moving out of fulfilled is something that happened to the
+     * requirement, not a choice the user made at a button.
+     */
+    public function actionLabelFor(self $target): string
+    {
+        if ($this === self::Fulfilled && $target === self::Searching) {
+            return 'Reopen for Searching';
+        }
+
+        return match ($target) {
+            self::Pending => 'Move to Pending',
+            self::Searching => 'Start Searching',
+            self::Fulfilled => 'Mark Fulfilled',
+            self::Skipped => 'Skip Requirement',
         };
     }
 
@@ -44,16 +76,5 @@ enum AssetRequirementStatus: string
         }
 
         return in_array($target, $this->allowedTransitions(), true);
-    }
-
-    public function actionLabelFor(self $target): string
-    {
-        return match ($target) {
-            self::Pending => 'Move to Pending',
-            self::Searching => 'Start Searching',
-            self::Fulfilled => 'Mark Fulfilled',
-            self::Skipped => 'Skip Requirement',
-            default => $target->label(),
-        };
     }
 }

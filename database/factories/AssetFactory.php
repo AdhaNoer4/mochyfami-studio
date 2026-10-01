@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\AssetMetadataStatus;
 use App\Enums\AssetStatus;
 use App\Enums\AssetType;
 use App\Models\Asset;
@@ -42,5 +43,69 @@ class AssetFactory extends Factory
             'attribution' => null,
             'notes' => null,
         ];
+    }
+
+    /**
+     * An asset with a stored file whose technical metadata was read
+     * successfully.
+     *
+     * A file path is required before metadata can be completed at all, since
+     * inspection reads the disk, so this state sets all three together: path,
+     * completed status, and the measured values. Width and height default to
+     * portrait 1080x1920, which is what the studio produces and what the
+     * default 9:16 requirement asks for.
+     */
+    public function withVerifiedFile(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'status' => AssetStatus::Available,
+            'file_path' => 'projects/'.$this->faker->uuid().'/asset.mp4',
+            'file_name' => 'asset.mp4',
+            'mime_type' => 'video/mp4',
+            'file_size' => $this->faker->numberBetween(1024, 1024 * 1024),
+            'duration_seconds' => 30,
+            'width' => 1080,
+            'height' => 1920,
+            'aspect_ratio' => 0.5625,
+            'metadata_status' => AssetMetadataStatus::Completed,
+            'metadata_error' => null,
+            'metadata_analyzed_at' => now(),
+        ]);
+    }
+
+    /**
+     * A file is attached but nobody has read its technical details yet.
+     *
+     * This is the state an upload lands in, and it is deliberately not
+     * compatible with anything: the asset has a file, so it looks plausible,
+     * but nothing about it has been verified.
+     */
+    public function withUnverifiedFile(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'status' => AssetStatus::Available,
+            'file_path' => 'projects/'.$this->faker->uuid().'/asset.mp4',
+            'file_name' => 'asset.mp4',
+            'mime_type' => 'video/mp4',
+            'metadata_status' => AssetMetadataStatus::Pending,
+            'metadata_error' => null,
+            'metadata_analyzed_at' => null,
+        ]);
+    }
+
+    /**
+     * A file is attached but could not be read.
+     */
+    public function withUnreadableFile(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'status' => AssetStatus::Available,
+            'file_path' => 'projects/'.$this->faker->uuid().'/asset.mp4',
+            'file_name' => 'asset.mp4',
+            'mime_type' => 'video/mp4',
+            'metadata_status' => AssetMetadataStatus::Failed,
+            'metadata_error' => 'The file could not be read.',
+            'metadata_analyzed_at' => now(),
+        ]);
     }
 }

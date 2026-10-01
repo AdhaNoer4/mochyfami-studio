@@ -220,6 +220,41 @@ class AssetRequirementService
     ): Collection {
         $requirement = $this->findRequirement($project, $versionNumber, $itemId, $requirementId);
 
+        return $this->candidatesFor($project, $requirement);
+    }
+
+    /**
+     * The requirement together with its candidates, resolved in one pass.
+     *
+     * A caller that has to report the selection and the candidates at the same
+     * time needs both, and resolving the requirement separately first would
+     * walk the ownership chain twice to answer one question.
+     *
+     * @return array{requirement: AssetRequirement, assets: Collection}
+     *
+     * @throws ModelNotFoundException
+     */
+    public function requirementWithCandidates(
+        ContentProject $project,
+        int $versionNumber,
+        int $itemId,
+        int $requirementId
+    ): array {
+        $requirement = $this->findRequirement($project, $versionNumber, $itemId, $requirementId);
+
+        return [
+            'requirement' => $requirement,
+            'assets' => $this->candidatesFor($project, $requirement),
+        ];
+    }
+
+    /**
+     * The project's own assets narrowed to one requirement's candidates.
+     *
+     * @return Collection<int, Asset>
+     */
+    private function candidatesFor(ContentProject $project, AssetRequirement $requirement): Collection
+    {
         return $project->assets()
             ->whereHas('assetRequirements', fn ($query) => $query->whereKey($requirement->getKey()))
             ->orderBy('assets.id')
@@ -313,9 +348,17 @@ class AssetRequirementService
     }
 
     /**
+     * Resolve one requirement through the full ownership chain.
+     *
+     * This is public because the scope chain it walks is the single answer to
+     * "is this requirement reachable from this project", and a second service
+     * answering the same question separately is how a cross-project write gets
+     * in. Callers that only need to read a requirement should use this rather
+     * than reaching for the model directly.
+     *
      * @throws ModelNotFoundException
      */
-    private function findRequirement(
+    public function findRequirement(
         ContentProject $project,
         int $versionNumber,
         int $itemId,
