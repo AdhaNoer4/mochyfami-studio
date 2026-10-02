@@ -1,6 +1,7 @@
 import { apiClient } from '../lib/api';
 import {
   ApiResponse,
+  AssetFulfillmentQualityResult,
   VisualPlan,
   VisualPlanFormData,
   VisualPlanItem,
@@ -28,6 +29,17 @@ export const visualPlanService = {
   async getQuality(projectId: number, version: number): Promise<VisualPlanQualityResult> {
     const response = await apiClient.get<ApiResponse<VisualPlanQualityResult>>(
       `${basePath(projectId, version)}/quality`,
+    );
+    return response.data.data;
+  },
+
+  /**
+   * Evaluate asset fulfillment readiness for production gate.
+   * Read-only evaluation.
+   */
+  async getAssetReadiness(projectId: number, version: number): Promise<AssetFulfillmentQualityResult> {
+    const response = await apiClient.get<ApiResponse<AssetFulfillmentQualityResult>>(
+      `${basePath(projectId, version)}/asset-readiness`,
     );
     return response.data.data;
   },

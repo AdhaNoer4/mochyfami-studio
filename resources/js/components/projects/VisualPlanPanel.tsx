@@ -9,6 +9,7 @@ import { visualPlanService } from '../../services/visualPlanService';
 import { assetRequirementService } from '../../services/assetRequirementService';
 import { RequirementAssetsSection } from '../assets/RequirementAssetsSection';
 import {
+  AssetFulfillmentQualityResult,
   AssetRequirement,
   AssetRequirementAspectRatio,
   AssetRequirementFormData,
@@ -205,6 +206,8 @@ export const VisualPlanPanel: React.FC<VisualPlanPanelProps> = ({ projectId }) =
 
   const [readiness, setReadiness] = useState<VisualPlanQualityResult | null>(null);
   const [readinessLoading, setReadinessLoading] = useState<boolean>(false);
+  const [assetReadiness, setAssetReadiness] = useState<AssetFulfillmentQualityResult | null>(null);
+  const [assetReadinessLoading, setAssetReadinessLoading] = useState<boolean>(false);
 
   const version = script?.current_version?.version ?? null;
   const scriptReviewable = script?.status === 'review' || script?.status === 'approved';
@@ -221,12 +224,19 @@ export const VisualPlanPanel: React.FC<VisualPlanPanelProps> = ({ projectId }) =
    */
   const refreshReadiness = async (versionNumber: number) => {
     setReadinessLoading(true);
+    setAssetReadinessLoading(true);
     try {
-      setReadiness(await visualPlanService.getQuality(projectId, versionNumber));
+      const [planQuality, assetQuality] = await Promise.all([
+        visualPlanService.getQuality(projectId, versionNumber).catch(() => null),
+        visualPlanService.getAssetReadiness(projectId, versionNumber).catch(() => null),
+      ]);
+      setReadiness(planQuality);
+      setAssetReadiness(assetQuality);
     } catch {
       setReadiness(null);
     } finally {
       setReadinessLoading(false);
+      setAssetReadinessLoading(false);
     }
   };
 
@@ -1316,6 +1326,100 @@ export const VisualPlanPanel: React.FC<VisualPlanPanelProps> = ({ projectId }) =
 
                   <p className="text-[11px] text-slate-500">
                     Planning readiness only. Assets are not sourced, tracked, or verified by this gate.
+                  </p>
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* ASSET FULFILLMENT READINESS */}<Card variant="default">
+            <CardHeader>
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div>
+                  <CardTitle className="text-base font-bold text-white flex items-center gap-2">
+                    <Package className="w-4 h-4 text-emerald-400" />
+                    Asset Fulfillment Readiness
+                    {assetReadiness && (
+                      <Badge variant={assetReadiness.ready ? 'emerald' : 'rose'}>
+                        {assetReadiness.ready ? 'READY' : 'NOT READY'}
+                      </Badge>
+                    )}
+                    {assetReadiness && (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-300 bg-slate-950 border border-slate-800 rounded-lg px-2 py-0.5">
+                        Score {assetReadiness.score}/100
+                      </span>
+                    )}
+                  </CardTitle>
+                  <CardDescription>
+                    Deterministic check that every required visual element is fulfilled by a valid, compatible selected asset.
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {assetReadinessLoading && !assetReadiness ? (
+                <div className="h-20 bg-slate-900 rounded-xl animate-pulse" />
+              ) : !assetReadiness ? (
+                <p className="text-xs text-slate-500">
+                  Asset fulfillment readiness is unavailable.
+                </p>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <QualityMetric
+                      label="Requirements fulfilled"
+                      value={`${assetReadiness.summary.fulfilled_requirements}/${assetReadiness.summary.total_requirements}`}
+                      tone={
+                        assetReadiness.summary.unfulfilled_requirements > 0 || assetReadiness.summary.invalid_fulfillments > 0
+                          ? 'rose'
+                          : 'emerald'
+                      }
+                    />
+                    <QualityMetric
+                      label="Unfulfilled"
+                      value={String(assetReadiness.summary.unfulfilled_requirements)}
+                      tone={assetReadiness.summary.unfulfilled_requirements > 0 ? 'amber' : 'emerald'}
+                    />
+                    <QualityMetric
+                      label="Invalid fulfillments"
+                      value={String(assetReadiness.summary.invalid_fulfillments)}
+                      tone={assetReadiness.summary.invalid_fulfillments > 0 ? 'rose' : 'emerald'}
+                    />
+                    <QualityMetric
+                      label="Blockers"
+                      value={String(assetReadiness.summary.blocker_count)}
+                      tone={assetReadiness.summary.blocker_count > 0 ? 'rose' : 'emerald'}
+                    />
+                  </div>
+
+                  {assetReadiness.blockers.length > 0 && (
+                    <div>
+                      <span className="block text-[11px] font-semibold text-rose-300 mb-2">
+                        Asset Fulfillment Blockers
+                      </span>
+                      <div className="space-y-1.5">
+                        {assetReadiness.blockers.map((issue, index) => (
+                          <ReadinessIssueRow key={`asset-${issue.code}-${index}`} issue={issue} />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {assetReadiness.warnings.length > 0 && (
+                    <div>
+                      <span className="block text-[11px] font-semibold text-amber-300 mb-2">
+                        Asset Fulfillment Warnings
+                      </span>
+                      <div className="space-y-1.5">
+                        {assetReadiness.warnings.map((issue, index) => (
+                          <ReadinessIssueRow key={`asset-${issue.code}-${index}`} issue={issue} />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <p className="text-[11px] text-slate-500">
+                    Asset fulfillment gate only. Does not run rendering, FFmpeg execution, subtitles, or production publishing.
                   </p>
                 </>
               )}

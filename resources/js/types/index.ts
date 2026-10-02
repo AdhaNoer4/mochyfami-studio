@@ -833,6 +833,39 @@ export interface VisualPlanQualityResult {
   info: VisualPlanQualityIssue[];
 }
 
+export interface AssetFulfillmentQualitySummary {
+  total_requirements: number;
+  fulfilled_requirements: number;
+  unfulfilled_requirements: number;
+  invalid_fulfillments: number;
+  blocker_count: number;
+  warning_count: number;
+}
+
+export interface AssetFulfillmentQualityItem {
+  id: number;
+  order: number;
+  narration_text: string;
+  visual_prompt: string;
+  requirement_count: number;
+  fulfilled_count: number;
+  blockers: VisualPlanQualityIssue[];
+  ready: boolean;
+}
+
+export interface AssetFulfillmentQualityResult {
+  visual_plan_id: number;
+  script_version_id: number;
+  status: VisualPlanStatus;
+  ready: boolean;
+  score: number;
+  summary: AssetFulfillmentQualitySummary;
+  items: AssetFulfillmentQualityItem[];
+  blockers: VisualPlanQualityIssue[];
+  warnings: VisualPlanQualityIssue[];
+  issues: VisualPlanQualityIssue[];
+}
+
 export type AssetType = 'video' | 'image' | 'audio' | 'other';
 
 export type AssetStatus = 'pending' | 'available' | 'processing' | 'approved' | 'rejected' | 'archived';
