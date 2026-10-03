@@ -939,6 +939,46 @@ export interface ProductionHandoffResult {
   issues: ProductionHandoffIssue[];
 }
 
+/**
+ * One production segment: a valid manifest entry enriched with the planned
+ * duration of the item it belongs to. It carries ids, types, and durations
+ * only - never a file path or URL. There is deliberately no timeline start,
+ * offset, transition, or render setting; those belong to a later phase.
+ */
+export interface ProductionSpecificationSegment {
+  visual_plan_item_id: number;
+  visual_plan_item_order: number;
+  asset_requirement_id: number;
+  requirement_type: AssetRequirementType;
+  asset_id: number;
+  asset_type: AssetType;
+  duration_seconds: number | null;
+  target_duration_seconds: number | null;
+  planned_duration_seconds: number | null;
+}
+
+export interface ProductionSpecificationSummary {
+  segment_count: number;
+  total_target_duration_seconds: number;
+  total_planned_duration_seconds: number;
+}
+
+/**
+ * The read-only production specification: the ordered production inputs a
+ * future timeline/render phase will consume. `ready` and `issues` are copied
+ * from the handoff; the segments mirror the manifest. Nothing is persisted and
+ * nothing is rendered.
+ */
+export interface ProductionSpecificationResult {
+  visual_plan_id: number;
+  script_version_id: number;
+  status: VisualPlanStatus;
+  ready: boolean;
+  specification: ProductionSpecificationSummary;
+  segments: ProductionSpecificationSegment[];
+  issues: ProductionHandoffIssue[];
+}
+
 export type AssetType = 'video' | 'image' | 'audio' | 'other';
 
 export type AssetStatus = 'pending' | 'available' | 'processing' | 'approved' | 'rejected' | 'archived';

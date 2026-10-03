@@ -4,6 +4,7 @@ import {
   AssetFulfillmentQualityResult,
   AssetProductionManifestResult,
   ProductionHandoffResult,
+  ProductionSpecificationResult,
   VisualPlan,
   VisualPlanFormData,
   VisualPlanItem,
@@ -66,6 +67,18 @@ export const visualPlanService = {
   async getProductionHandoff(projectId: number, version: number): Promise<ProductionHandoffResult> {
     const response = await apiClient.get<ApiResponse<ProductionHandoffResult>>(
       `${basePath(projectId, version)}/production-handoff`,
+    );
+    return response.data.data;
+  },
+
+  /**
+   * Fetch the read-only production specification: the ordered production
+   * segments a future timeline/render phase will consume. It composes the
+   * existing readiness layers and never renders or mutates anything.
+   */
+  async getProductionSpecification(projectId: number, version: number): Promise<ProductionSpecificationResult> {
+    const response = await apiClient.get<ApiResponse<ProductionSpecificationResult>>(
+      `${basePath(projectId, version)}/production-spec`,
     );
     return response.data.data;
   },

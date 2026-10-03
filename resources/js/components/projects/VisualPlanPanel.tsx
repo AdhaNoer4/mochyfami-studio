@@ -19,6 +19,7 @@ import {
   AssetRequirementTransition,
   AssetRequirementType,
   ProductionHandoffResult,
+  ProductionSpecificationResult,
   Script,
   ScriptQualityResult,
   VisualPlan,
@@ -215,6 +216,8 @@ export const VisualPlanPanel: React.FC<VisualPlanPanelProps> = ({ projectId }) =
   const [assetManifestLoading, setAssetManifestLoading] = useState<boolean>(false);
   const [productionHandoff, setProductionHandoff] = useState<ProductionHandoffResult | null>(null);
   const [productionHandoffLoading, setProductionHandoffLoading] = useState<boolean>(false);
+  const [productionSpecification, setProductionSpecification] = useState<ProductionSpecificationResult | null>(null);
+  const [productionSpecificationLoading, setProductionSpecificationLoading] = useState<boolean>(false);
 
   const version = script?.current_version?.version ?? null;
   const scriptReviewable = script?.status === 'review' || script?.status === 'approved';
@@ -234,26 +237,31 @@ export const VisualPlanPanel: React.FC<VisualPlanPanelProps> = ({ projectId }) =
     setAssetReadinessLoading(true);
     setAssetManifestLoading(true);
     setProductionHandoffLoading(true);
+    setProductionSpecificationLoading(true);
     try {
-      const [planQuality, assetQuality, manifest, handoff] = await Promise.all([
+      const [planQuality, assetQuality, manifest, handoff, specification] = await Promise.all([
         visualPlanService.getQuality(projectId, versionNumber).catch(() => null),
         visualPlanService.getAssetReadiness(projectId, versionNumber).catch(() => null),
         visualPlanService.getAssetManifest(projectId, versionNumber).catch(() => null),
         visualPlanService.getProductionHandoff(projectId, versionNumber).catch(() => null),
+        visualPlanService.getProductionSpecification(projectId, versionNumber).catch(() => null),
       ]);
       setReadiness(planQuality);
       setAssetReadiness(assetQuality);
       setAssetManifest(manifest);
       setProductionHandoff(handoff);
+      setProductionSpecification(specification);
     } catch {
       setReadiness(null);
       setAssetManifest(null);
       setProductionHandoff(null);
+      setProductionSpecification(null);
     } finally {
       setReadinessLoading(false);
       setAssetReadinessLoading(false);
       setAssetManifestLoading(false);
       setProductionHandoffLoading(false);
+      setProductionSpecificationLoading(false);
     }
   };
 
@@ -1604,6 +1612,98 @@ export const VisualPlanPanel: React.FC<VisualPlanPanelProps> = ({ projectId }) =
 
                   <p className="text-[11px] text-slate-500">
                     Aggregate handoff only. Rendering, FFmpeg execution, transcoding, subtitles, audio mixing, and
+                    publishing belong to a later phase.
+                  </p>
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* PRODUCTION SPECIFICATION */}<Card variant="default">
+            <CardHeader>
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div>
+                  <CardTitle className="text-base font-bold text-white flex items-center gap-2">
+                    <Layers className="w-4 h-4 text-sky-400" />
+                    Production Specification
+                    {productionSpecification && (
+                      <Badge variant={productionSpecification.ready ? 'emerald' : 'rose'}>
+                        {productionSpecification.ready ? 'READY' : 'BLOCKED'}
+                      </Badge>
+                    )}
+                  </CardTitle>
+                  <CardDescription>
+                    The ordered production segments a future timeline/render phase will consume. Read-only; it defines
+                    no timeline, offset, transition, or render setting and produces nothing.
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {productionSpecificationLoading && !productionSpecification ? (
+                <div className="h-20 bg-slate-900 rounded-xl animate-pulse" />
+              ) : !productionSpecification ? (
+                <p className="text-xs text-slate-500">Production specification is unavailable.</p>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    <QualityMetric
+                      label="Segments"
+                      value={String(productionSpecification.specification.segment_count)}
+                      tone={productionSpecification.specification.segment_count > 0 ? 'emerald' : 'rose'}
+                    />
+                    <QualityMetric
+                      label="Target duration"
+                      value={`${productionSpecification.specification.total_target_duration_seconds}s`}
+                      tone="indigo"
+                    />
+                    <QualityMetric
+                      label="Planned duration"
+                      value={`${productionSpecification.specification.total_planned_duration_seconds}s`}
+                      tone="indigo"
+                    />
+                  </div>
+
+                  {productionSpecification.segments.length > 0 && (
+                    <div className="space-y-1.5">
+                      {productionSpecification.segments.map((segment) => (
+                        <div
+                          key={segment.asset_requirement_id}
+                          className="rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-xs"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="text-slate-400">Scene {segment.visual_plan_item_order}</span>
+                            <span className="text-sky-300 font-mono text-[11px] uppercase">
+                              {segment.requirement_type}
+                            </span>
+                            <span className="text-slate-500 text-[11px]">Asset #{segment.asset_id}</span>
+                          </div>
+                          <div className="text-slate-400 text-[11px] mt-0.5">
+                            {segment.target_duration_seconds ?? segment.planned_duration_seconds ?? 0}s target
+                            {segment.planned_duration_seconds !== null && (
+                              <> · {segment.planned_duration_seconds}s planned</>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {productionSpecification.issues.length > 0 && (
+                    <div>
+                      <span className="block text-[11px] font-semibold text-rose-300 mb-2">
+                        Specification Issues
+                      </span>
+                      <div className="space-y-1.5">
+                        {productionSpecification.issues.map((issue, index) => (
+                          <ReadinessIssueRow key={`spec-${issue.source}-${issue.code}-${index}`} issue={issue} />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <p className="text-[11px] text-slate-500">
+                    Specification only. Timeline placement, transitions, render presets, FFmpeg execution, and
                     publishing belong to a later phase.
                   </p>
                 </>
