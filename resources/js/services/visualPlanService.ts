@@ -2,6 +2,7 @@ import { apiClient } from '../lib/api';
 import {
   ApiResponse,
   AssetFulfillmentQualityResult,
+  AssetProductionManifestResult,
   VisualPlan,
   VisualPlanFormData,
   VisualPlanItem,
@@ -40,6 +41,18 @@ export const visualPlanService = {
   async getAssetReadiness(projectId: number, version: number): Promise<AssetFulfillmentQualityResult> {
     const response = await apiClient.get<ApiResponse<AssetFulfillmentQualityResult>>(
       `${basePath(projectId, version)}/asset-readiness`,
+    );
+    return response.data.data;
+  },
+
+  /**
+   * Fetch the read-only production asset manifest: the exact selected assets a
+   * future production phase would consume, keyed by requirement. It never
+   * selects, fulfills, or renders anything.
+   */
+  async getAssetManifest(projectId: number, version: number): Promise<AssetProductionManifestResult> {
+    const response = await apiClient.get<ApiResponse<AssetProductionManifestResult>>(
+      `${basePath(projectId, version)}/asset-manifest`,
     );
     return response.data.data;
   },

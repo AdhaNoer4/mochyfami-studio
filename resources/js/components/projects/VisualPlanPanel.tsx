@@ -10,6 +10,8 @@ import { assetRequirementService } from '../../services/assetRequirementService'
 import { RequirementAssetsSection } from '../assets/RequirementAssetsSection';
 import {
   AssetFulfillmentQualityResult,
+  AssetManifestEntry,
+  AssetProductionManifestResult,
   AssetRequirement,
   AssetRequirementAspectRatio,
   AssetRequirementFormData,
@@ -208,6 +210,8 @@ export const VisualPlanPanel: React.FC<VisualPlanPanelProps> = ({ projectId }) =
   const [readinessLoading, setReadinessLoading] = useState<boolean>(false);
   const [assetReadiness, setAssetReadiness] = useState<AssetFulfillmentQualityResult | null>(null);
   const [assetReadinessLoading, setAssetReadinessLoading] = useState<boolean>(false);
+  const [assetManifest, setAssetManifest] = useState<AssetProductionManifestResult | null>(null);
+  const [assetManifestLoading, setAssetManifestLoading] = useState<boolean>(false);
 
   const version = script?.current_version?.version ?? null;
   const scriptReviewable = script?.status === 'review' || script?.status === 'approved';
@@ -225,18 +229,23 @@ export const VisualPlanPanel: React.FC<VisualPlanPanelProps> = ({ projectId }) =
   const refreshReadiness = async (versionNumber: number) => {
     setReadinessLoading(true);
     setAssetReadinessLoading(true);
+    setAssetManifestLoading(true);
     try {
-      const [planQuality, assetQuality] = await Promise.all([
+      const [planQuality, assetQuality, manifest] = await Promise.all([
         visualPlanService.getQuality(projectId, versionNumber).catch(() => null),
         visualPlanService.getAssetReadiness(projectId, versionNumber).catch(() => null),
+        visualPlanService.getAssetManifest(projectId, versionNumber).catch(() => null),
       ]);
       setReadiness(planQuality);
       setAssetReadiness(assetQuality);
+      setAssetManifest(manifest);
     } catch {
       setReadiness(null);
+      setAssetManifest(null);
     } finally {
       setReadinessLoading(false);
       setAssetReadinessLoading(false);
+      setAssetManifestLoading(false);
     }
   };
 
@@ -1426,6 +1435,102 @@ export const VisualPlanPanel: React.FC<VisualPlanPanelProps> = ({ projectId }) =
             </CardContent>
           </Card>
 
+          {/* PRODUCTION ASSET MANIFEST */}<Card variant="default">
+            <CardHeader>
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div>
+                  <CardTitle className="text-base font-bold text-white flex items-center gap-2">
+                    <Clapperboard className="w-4 h-4 text-indigo-400" />
+                    Production Asset Manifest
+                    {assetManifest && (
+                      <Badge variant={assetManifest.ready ? 'emerald' : 'rose'}>
+                        {assetManifest.ready ? 'READY' : 'INCOMPLETE'}
+                      </Badge>
+                    )}
+                  </CardTitle>
+                  <CardDescription>
+                    The exact selected asset each requirement would hand to production. Read-only projection; it
+                    never selects, fulfills, or renders anything.
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {assetManifestLoading && !assetManifest ? (
+                <div className="h-20 bg-slate-900 rounded-xl animate-pulse" />
+              ) : !assetManifest ? (
+                <p className="text-xs text-slate-500">Production asset manifest is unavailable.</p>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    <QualityMetric
+                      label="Manifest entries"
+                      value={`${assetManifest.summary.valid_entries}/${assetManifest.summary.total_requirements}`}
+                      tone={assetManifest.summary.valid_entries === assetManifest.summary.total_requirements ? 'emerald' : 'amber'}
+                    />
+                    <QualityMetric
+                      label="Invalid requirements"
+                      value={String(assetManifest.summary.invalid_requirements)}
+                      tone={assetManifest.summary.invalid_requirements > 0 ? 'rose' : 'emerald'}
+                    />
+                    <QualityMetric
+                      label="Status"
+                      value={assetManifest.ready ? 'Ready' : 'Incomplete'}
+                      tone={assetManifest.ready ? 'emerald' : 'rose'}
+                    />
+                  </div>
+
+                  {assetManifest.entries.length > 0 && (
+                    <div className="space-y-2">
+                      {groupManifestEntries(assetManifest.entries).map((group) => (
+                        <div key={group.order} className="rounded-lg border border-slate-800 bg-slate-950 px-3 py-2">
+                          <p className="text-[11px] font-semibold text-slate-300 mb-1.5">
+                            Scene {group.order}
+                          </p>
+                          <div className="space-y-1.5">
+                            {group.entries.map((entry) => (
+                              <div key={entry.asset_requirement_id} className="text-xs">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-indigo-300 font-mono text-[11px] uppercase">
+                                    {entry.requirement_type}
+                                  </span>
+                                  <span className="text-slate-500 text-[11px]">
+                                    Asset #{entry.asset_id}
+                                  </span>
+                                </div>
+                                <div className="text-slate-300 truncate">
+                                  {entry.file_name ?? 'Unnamed file'}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {assetManifest.issues.length > 0 && (
+                    <div>
+                      <span className="block text-[11px] font-semibold text-rose-300 mb-2">
+                        Manifest Issues
+                      </span>
+                      <div className="space-y-1.5">
+                        {assetManifest.issues.map((issue, index) => (
+                          <ReadinessIssueRow key={`manifest-${issue.code}-${index}`} issue={issue} />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <p className="text-[11px] text-slate-500">
+                    Production manifest only. Rendering, FFmpeg execution, transcoding, trimming, subtitles, audio
+                    mixing, and publishing belong to a later phase.
+                  </p>
+                </>
+              )}
+            </CardContent>
+          </Card>
+
           {/* CONFIRM GENERATION */}          {confirmGenerate && (
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
               <Card variant="default" className="max-w-md w-full p-6 border-slate-800 shadow-2xl">
@@ -1521,4 +1626,24 @@ function ReadinessIssueRow({ issue }: { issue: VisualPlanQualityIssue }) {
       <span className="text-xs text-slate-300 min-w-0">{issue.message}</span>
     </div>
   );
+}
+
+/**
+ * Groups manifest entries by the scene they belong to. Entries arrive already
+ * ordered by item order, so a single forward pass keeps the scene order too.
+ */
+function groupManifestEntries(entries: AssetManifestEntry[]): Array<{ order: number; entries: AssetManifestEntry[] }> {
+  const groups: Array<{ order: number; entries: AssetManifestEntry[] }> = [];
+
+  for (const entry of entries) {
+    const last = groups[groups.length - 1];
+
+    if (last && last.order === entry.visual_plan_item_order) {
+      last.entries.push(entry);
+    } else {
+      groups.push({ order: entry.visual_plan_item_order, entries: [entry] });
+    }
+  }
+
+  return groups;
 }

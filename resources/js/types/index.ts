@@ -866,6 +866,44 @@ export interface AssetFulfillmentQualityResult {
   issues: VisualPlanQualityIssue[];
 }
 
+/**
+ * One production manifest entry: the exact selected asset a future production
+ * phase would consume for one requirement. There is no file_path and no URL
+ * here on purpose; production resolves the file from asset_id.
+ */
+export interface AssetManifestEntry {
+  visual_plan_item_id: number;
+  visual_plan_item_order: number;
+  asset_requirement_id: number;
+  requirement_type: AssetRequirementType;
+  asset_id: number;
+  asset_type: AssetType;
+  file_name: string | null;
+  mime_type: string | null;
+  duration_seconds: number | null;
+  width: number | null;
+  height: number | null;
+  aspect_ratio: number | null;
+  target_duration_seconds: number | null;
+  status: AssetRequirementStatus;
+}
+
+export interface AssetManifestSummary {
+  total_requirements: number;
+  valid_entries: number;
+  invalid_requirements: number;
+}
+
+export interface AssetProductionManifestResult {
+  visual_plan_id: number;
+  script_version_id: number;
+  status: VisualPlanStatus;
+  ready: boolean;
+  summary: AssetManifestSummary;
+  entries: AssetManifestEntry[];
+  issues: VisualPlanQualityIssue[];
+}
+
 export type AssetType = 'video' | 'image' | 'audio' | 'other';
 
 export type AssetStatus = 'pending' | 'available' | 'processing' | 'approved' | 'rejected' | 'archived';

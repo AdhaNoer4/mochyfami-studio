@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\V1\AssetController;
 use App\Http\Controllers\Api\V1\AssetFulfillmentQualityController;
+use App\Http\Controllers\Api\V1\AssetProductionManifestController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\CategoryController;
 use App\Http\Controllers\Api\V1\DashboardController;
@@ -121,6 +122,7 @@ Route::prefix('v1')->group(function () {
                 Route::patch('/status', [VisualPlanController::class, 'transitionStatus']);
                 Route::get('quality', [VisualPlanQualityController::class, 'show']);
                 Route::get('asset-readiness', [AssetFulfillmentQualityController::class, 'show']);
+                Route::get('asset-manifest', [AssetProductionManifestController::class, 'show']);
 
                 Route::get('items', [VisualPlanItemController::class, 'index']);
                 Route::post('items', [VisualPlanItemController::class, 'store']);

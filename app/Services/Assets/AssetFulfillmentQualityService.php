@@ -11,7 +11,7 @@ use Illuminate\Support\Collection;
 class AssetFulfillmentQualityService
 {
     public function __construct(
-        protected AssetCompatibilityEvaluator $evaluator
+        protected AssetRequirementProductionValidator $validator
     ) {}
 
     /**
@@ -167,160 +167,44 @@ class AssetFulfillmentQualityService
      */
     private function evaluateRequirement(AssetRequirement $requirement, array &$blockers, array &$warnings): array
     {
-        $context = $this->context($requirement);
-
-        if ($requirement->status->value === 'fulfilled') {
-            $check = $this->checkFulfilledClaim($requirement, $context);
-            if ($check['invalid']) {
-                $blockers[] = $check['issue'];
-
-                return [
-                    'state' => 'invalid',
-                    'issue' => $check['issue'],
-                    'details' => $check['details'],
-                ];
-            }
-
-            $asset = $requirement->selectedAsset;
-            if ($asset !== null) {
-                $result = $this->evaluator->evaluate($requirement, $asset);
-                if (! $result['compatible']) {
-                    $issue = $this->blocker(
-                        'SELECTED_ASSET_INCOMPATIBLE',
-                        'The selected asset no longer satisfies this requirement.',
-                        $context + ['selected_asset_id' => $asset->id]
-                    );
-                    $blockers[] = $issue;
-
-                    return [
-                        'state' => 'invalid',
-                        'issue' => $issue,
-                        'details' => $this->mapDetails($result['issues'], $context, $asset),
-                    ];
-                }
-
-                foreach ($result['issues'] as $issueDetail) {
-                    if ($issueDetail['severity'] === 'warning') {
-                        $warnings[] = $this->issue(
-                            'warning',
-                            $issueDetail['code'],
-                            $issueDetail['message'],
-                            $context + ['selected_asset_id' => $asset->id]
-                        );
-                    }
-                }
-            }
-
-            return [
-                'state' => 'fulfilled',
-                'issue' => $this->info('REQUIREMENT_FULFILLED', 'Asset requirement is fulfilled.', $context),
-                'details' => [],
-            ];
-        }
+        $baseContext = $this->context($requirement);
+        $invalidContext = $baseContext;
 
         if ($requirement->selected_asset_id !== null) {
-            $context['selected_asset_id'] = $requirement->selected_asset_id;
-            $issue = $this->blocker(
-                'REQUIREMENT_SELECTED_BUT_NOT_FULFILLED',
-                'Asset requirement has a selection but is not fulfilled.',
-                $context
-            );
+            $invalidContext['selected_asset_id'] = $requirement->selected_asset_id;
+        }
+
+        $validation = $this->validator->validate($requirement);
+
+        if (! $validation['valid']) {
+            $issue = $this->blocker($validation['code'], $validation['message'], $invalidContext);
             $blockers[] = $issue;
 
+            $details = $validation['compatibility'] !== null && $validation['asset'] !== null
+                ? $this->mapDetails($validation['compatibility']['issues'], $baseContext, $validation['asset'])
+                : [];
+
             return [
-                'state' => 'unfulfilled',
+                'state' => $requirement->status->value === 'fulfilled' ? 'invalid' : 'unfulfilled',
                 'issue' => $issue,
-                'details' => [],
+                'details' => $details,
             ];
         }
 
-        $issue = $this->blocker('REQUIREMENT_NOT_FULFILLED', 'Asset requirement has not been fulfilled.', $context);
-        $blockers[] = $issue;
-
-        return [
-            'state' => 'unfulfilled',
-            'issue' => $issue,
-            'details' => [],
-        ];
-    }
-
-    /**
-     * Check if a requirement claiming to be fulfilled has any state inconsistency.
-     *
-     * @param  array<string, mixed>  $context
-     * @return array{invalid: bool, issue: array<string, mixed>|null, details: array<int, array<string, mixed>>}
-     */
-    private function checkFulfilledClaim(AssetRequirement $requirement, array $context): array
-    {
-        if ($requirement->selected_asset_id === null) {
-            return [
-                'invalid' => true,
-                'issue' => $this->blocker(
-                    'FULFILLED_REQUIREMENT_WITHOUT_SELECTION',
-                    'Asset requirement status is fulfilled but no asset is selected.',
-                    $context
-                ),
-                'details' => [],
-            ];
-        }
-
-        $context['selected_asset_id'] = $requirement->selected_asset_id;
-
-        /** @var Asset|null $asset */
-        $asset = $requirement->selectedAsset;
-
-        if ($asset === null) {
-            return [
-                'invalid' => true,
-                'issue' => $this->blocker(
-                    'SELECTED_ASSET_MISSING',
-                    'Selected asset no longer exists in the database.',
-                    $context
-                ),
-                'details' => [],
-            ];
-        }
-
-        $project = $requirement->visualPlanItem?->visualPlan?->content_project_id;
-        if ($project !== null && $asset->content_project_id !== $project) {
-            return [
-                'invalid' => true,
-                'issue' => $this->blocker(
-                    'SELECTED_ASSET_CROSS_PROJECT',
-                    'Selected asset belongs to a different project.',
-                    $context
-                ),
-                'details' => [],
-            ];
-        }
-
-        if (! $asset->hasFileAttached()) {
-            return [
-                'invalid' => true,
-                'issue' => $this->blocker(
-                    'SELECTED_ASSET_HAS_NO_FILE',
-                    'Selected asset does not have an uploaded file.',
-                    $context
-                ),
-                'details' => [],
-            ];
-        }
-
-        if ($requirement->assets->isNotEmpty() && ! $requirement->assets->pluck('id')->contains($asset->id)) {
-            return [
-                'invalid' => true,
-                'issue' => $this->blocker(
-                    'SELECTED_ASSET_NOT_CANDIDATE',
-                    'Selected asset is no longer associated as a candidate for this requirement.',
-                    $context
-                ),
-                'details' => [],
-            ];
+        foreach ($validation['compatibility']['issues'] ?? [] as $issueDetail) {
+            if ($issueDetail['severity'] === 'warning') {
+                $warnings[] = $this->issue(
+                    'warning',
+                    $issueDetail['code'],
+                    $issueDetail['message'],
+                    $baseContext + ['selected_asset_id' => $validation['asset']?->id]
+                );
+            }
         }
 
         return [
-            'invalid' => false,
-            'issue' => null,
+            'state' => 'fulfilled',
+            'issue' => $this->info('REQUIREMENT_FULFILLED', 'Asset requirement is fulfilled.', $baseContext),
             'details' => [],
         ];
     }
