@@ -904,6 +904,41 @@ export interface AssetProductionManifestResult {
   issues: VisualPlanQualityIssue[];
 }
 
+/**
+ * The readiness layer an aggregated handoff issue came from. The handoff does
+ * not invent issues; every one is a verbatim copy of an upstream blocker or
+ * warning, tagged so the UI can say which authority to fix.
+ */
+export type ProductionHandoffSource = 'planning' | 'asset_readiness' | 'production_manifest';
+
+export interface ProductionHandoffIssue extends VisualPlanQualityIssue {
+  source: ProductionHandoffSource;
+}
+
+export interface ProductionHandoffSummary {
+  planning_blockers: number;
+  asset_blockers: number;
+  manifest_blockers: number;
+  total_blockers: number;
+  total_warnings: number;
+  production_entries: number;
+}
+
+/**
+ * The single production handoff decision: planning readiness, asset
+ * readiness, and the production asset manifest composed into one answer.
+ * `ready` means a future production phase has everything it needs; it never
+ * means anything has been rendered, queued, or published.
+ */
+export interface ProductionHandoffResult {
+  visual_plan_id: number;
+  script_version_id: number;
+  status: VisualPlanStatus;
+  ready: boolean;
+  summary: ProductionHandoffSummary;
+  issues: ProductionHandoffIssue[];
+}
+
 export type AssetType = 'video' | 'image' | 'audio' | 'other';
 
 export type AssetStatus = 'pending' | 'available' | 'processing' | 'approved' | 'rejected' | 'archived';

@@ -18,6 +18,7 @@ import {
   AssetRequirementStatus,
   AssetRequirementTransition,
   AssetRequirementType,
+  ProductionHandoffResult,
   Script,
   ScriptQualityResult,
   VisualPlan,
@@ -212,6 +213,8 @@ export const VisualPlanPanel: React.FC<VisualPlanPanelProps> = ({ projectId }) =
   const [assetReadinessLoading, setAssetReadinessLoading] = useState<boolean>(false);
   const [assetManifest, setAssetManifest] = useState<AssetProductionManifestResult | null>(null);
   const [assetManifestLoading, setAssetManifestLoading] = useState<boolean>(false);
+  const [productionHandoff, setProductionHandoff] = useState<ProductionHandoffResult | null>(null);
+  const [productionHandoffLoading, setProductionHandoffLoading] = useState<boolean>(false);
 
   const version = script?.current_version?.version ?? null;
   const scriptReviewable = script?.status === 'review' || script?.status === 'approved';
@@ -230,22 +233,27 @@ export const VisualPlanPanel: React.FC<VisualPlanPanelProps> = ({ projectId }) =
     setReadinessLoading(true);
     setAssetReadinessLoading(true);
     setAssetManifestLoading(true);
+    setProductionHandoffLoading(true);
     try {
-      const [planQuality, assetQuality, manifest] = await Promise.all([
+      const [planQuality, assetQuality, manifest, handoff] = await Promise.all([
         visualPlanService.getQuality(projectId, versionNumber).catch(() => null),
         visualPlanService.getAssetReadiness(projectId, versionNumber).catch(() => null),
         visualPlanService.getAssetManifest(projectId, versionNumber).catch(() => null),
+        visualPlanService.getProductionHandoff(projectId, versionNumber).catch(() => null),
       ]);
       setReadiness(planQuality);
       setAssetReadiness(assetQuality);
       setAssetManifest(manifest);
+      setProductionHandoff(handoff);
     } catch {
       setReadiness(null);
       setAssetManifest(null);
+      setProductionHandoff(null);
     } finally {
       setReadinessLoading(false);
       setAssetReadinessLoading(false);
       setAssetManifestLoading(false);
+      setProductionHandoffLoading(false);
     }
   };
 
@@ -1525,6 +1533,78 @@ export const VisualPlanPanel: React.FC<VisualPlanPanelProps> = ({ projectId }) =
                   <p className="text-[11px] text-slate-500">
                     Production manifest only. Rendering, FFmpeg execution, transcoding, trimming, subtitles, audio
                     mixing, and publishing belong to a later phase.
+                  </p>
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* PRODUCTION HANDOFF */}<Card variant="default">
+            <CardHeader>
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div>
+                  <CardTitle className="text-base font-bold text-white flex items-center gap-2">
+                    <Package className="w-4 h-4 text-emerald-400" />
+                    Production Handoff
+                    {productionHandoff && (
+                      <Badge variant={productionHandoff.ready ? 'emerald' : 'rose'}>
+                        {productionHandoff.ready ? 'READY' : 'BLOCKED'}
+                      </Badge>
+                    )}
+                  </CardTitle>
+                  <CardDescription>
+                    The combined production handoff decision: planning readiness, asset readiness, and the manifest.
+                    Read-only; it never renders, queues, or publishes anything.
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {productionHandoffLoading && !productionHandoff ? (
+                <div className="h-20 bg-slate-900 rounded-xl animate-pulse" />
+              ) : !productionHandoff ? (
+                <p className="text-xs text-slate-500">Production handoff status is unavailable.</p>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    <QualityMetric
+                      label="Production entries"
+                      value={String(productionHandoff.summary.production_entries)}
+                      tone={productionHandoff.summary.production_entries > 0 ? 'emerald' : 'rose'}
+                    />
+                    <QualityMetric
+                      label="Blockers"
+                      value={String(productionHandoff.summary.total_blockers)}
+                      tone={productionHandoff.summary.total_blockers > 0 ? 'rose' : 'emerald'}
+                    />
+                    <QualityMetric
+                      label="Warnings"
+                      value={String(productionHandoff.summary.total_warnings)}
+                      tone={productionHandoff.summary.total_warnings > 0 ? 'amber' : 'emerald'}
+                    />
+                    <QualityMetric
+                      label="Handoff"
+                      value={productionHandoff.ready ? 'Ready' : 'Blocked'}
+                      tone={productionHandoff.ready ? 'emerald' : 'rose'}
+                    />
+                  </div>
+
+                  {productionHandoff.issues.length > 0 && (
+                    <div>
+                      <span className="block text-[11px] font-semibold text-rose-300 mb-2">
+                        Handoff Issues
+                      </span>
+                      <div className="space-y-1.5">
+                        {productionHandoff.issues.map((issue, index) => (
+                          <ReadinessIssueRow key={`handoff-${issue.source}-${issue.code}-${index}`} issue={issue} />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <p className="text-[11px] text-slate-500">
+                    Aggregate handoff only. Rendering, FFmpeg execution, transcoding, subtitles, audio mixing, and
+                    publishing belong to a later phase.
                   </p>
                 </>
               )}

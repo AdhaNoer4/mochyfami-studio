@@ -3,6 +3,7 @@ import {
   ApiResponse,
   AssetFulfillmentQualityResult,
   AssetProductionManifestResult,
+  ProductionHandoffResult,
   VisualPlan,
   VisualPlanFormData,
   VisualPlanItem,
@@ -53,6 +54,18 @@ export const visualPlanService = {
   async getAssetManifest(projectId: number, version: number): Promise<AssetProductionManifestResult> {
     const response = await apiClient.get<ApiResponse<AssetProductionManifestResult>>(
       `${basePath(projectId, version)}/asset-manifest`,
+    );
+    return response.data.data;
+  },
+
+  /**
+   * Fetch the read-only production handoff decision. It composes planning
+   * readiness, asset readiness, and the production manifest, and never renders
+   * or mutates anything.
+   */
+  async getProductionHandoff(projectId: number, version: number): Promise<ProductionHandoffResult> {
+    const response = await apiClient.get<ApiResponse<ProductionHandoffResult>>(
+      `${basePath(projectId, version)}/production-handoff`,
     );
     return response.data.data;
   },
