@@ -4,14 +4,15 @@ import {
   Asset,
   AssetFilterParams,
   AssetFormData,
+  AssetStatus,
   PaginatedData,
 } from '../types';
 
 const basePath = (projectId: number) => `/projects/${projectId}/assets`;
 
 /**
- * Metadata plus file attachment. Nothing here fetches a source_url or moves an
- * asset through its lifecycle.
+ * Metadata plus file attachment, with one deliberate exception: transitionStatus
+ * below is the only call here that moves an asset through its lifecycle.
  */
 export const assetService = {
   async list(
@@ -99,6 +100,27 @@ export const assetService = {
   async analyze(projectId: number, assetId: number): Promise<Asset> {
     const response = await apiClient.post<ApiResponse<Asset>>(
       `${basePath(projectId)}/${assetId}/analyze`,
+    );
+    return response.data.data;
+  },
+
+  /**
+   * Asks the server to move an asset along its lifecycle.
+   *
+   * This has its own endpoint rather than riding on update because the two are
+   * not the same decision: update edits metadata, while this is the one path
+   * that writes status. The server enforces the state machine and answers 422
+   * with a message naming both states when a transition is not allowed, which
+   * is why the status is not filtered here first.
+   */
+  async transitionStatus(
+    projectId: number,
+    assetId: number,
+    status: AssetStatus,
+  ): Promise<Asset> {
+    const response = await apiClient.patch<ApiResponse<Asset>>(
+      `${basePath(projectId)}/${assetId}/status`,
+      { status },
     );
     return response.data.data;
   },

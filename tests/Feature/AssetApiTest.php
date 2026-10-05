@@ -679,6 +679,7 @@ class AssetApiTest extends TestCase
                 'type_label',
                 'status',
                 'status_label',
+                'allowed_transitions',
                 'title',
                 'description',
                 'file_name',
@@ -772,22 +773,5 @@ class AssetApiTest extends TestCase
         $this->actingAs($user, 'sanctum')
             ->postJson($this->listUrl($project).'/upload')
             ->assertNotFound();
-    }
-
-    #[Test]
-    public function test_there_is_no_status_transition_endpoint(): void
-    {
-        Http::preventStrayRequests();
-        $user = User::factory()->create();
-        $project = $this->projectFor($user);
-        $asset = Asset::factory()->create(['content_project_id' => $project->id]);
-
-        $this->actingAs($user, 'sanctum')
-            ->patchJson($this->showUrl($project, $asset->id).'/status', [
-                'status' => AssetStatus::Available->value,
-            ])
-            ->assertNotFound();
-
-        $this->assertSame(AssetStatus::Pending, $asset->fresh()->status);
     }
 }

@@ -983,6 +983,12 @@ export type AssetType = 'video' | 'image' | 'audio' | 'other';
 
 export type AssetStatus = 'pending' | 'available' | 'processing' | 'approved' | 'rejected' | 'archived';
 
+/** One transition the server will accept, with the label to put on its button. */
+export interface AssetStatusTransition {
+  status: AssetStatus;
+  label: string;
+}
+
 /**
  * Asset metadata only. There is no file behind any of these fields yet: a null
  * file_name or mime_type is the normal state, and `status` describes where the
@@ -1004,6 +1010,14 @@ export interface Asset {
   type_label: string;
   status: AssetStatus;
   status_label: string;
+  /**
+   * The transitions the server's state machine permits from the current status.
+   *
+   * This is the list the UI offers, not the list the server will accept: the
+   * server re-checks every transition, so a stale list can only cost the user a
+   * rejected click. An empty list means the asset has nowhere left to go.
+   */
+  allowed_transitions?: AssetStatusTransition[];
   title?: string | null;
   description?: string | null;
   file_name?: string | null;

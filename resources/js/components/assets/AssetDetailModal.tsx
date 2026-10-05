@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
-import { Asset } from '../../types';
+import { Asset, AssetStatus } from '../../types';
 import { assetService } from '../../services/assetService';
 import { getAssetStatusVariant } from './AssetCard';
 import {
@@ -12,13 +12,14 @@ import {
   formatAspectRatioLabel,
 } from '../../utils/assetFormat';
 import { AssetPreview } from './AssetPreview';
-import { X, FileText, RefreshCw, Loader2, AlertCircle } from 'lucide-react';
+import { X, FileText, RefreshCw, Loader2, AlertCircle, ArrowRight } from 'lucide-react';
 
 export interface AssetDetailModalProps {
   projectId: number;
   asset: Asset;
   onClose: () => void;
   onAnalyzed: (asset: Asset) => void;
+  onStatusChanged: (asset: Asset) => void;
 }
 
 interface DetailRowProps {
@@ -70,14 +71,30 @@ const METADATA_NOTES: Record<string, { variant: 'emerald' | 'amber' | 'rose'; la
   failed: { variant: 'rose', label: 'Could not be measured' },
 };
 
+/**
+ * Prefers the server's own message over the axios status line. AxiosError's top
+ * level message is only "Request failed with status code 422", which would hide
+ * the one thing the user needs here: which transition was refused.
+ */
+function readErrorMessage(error: unknown, fallback: string): string {
+  const response = (
+    error as { response?: { data?: { message?: string } } } | null
+  )?.response?.data;
+
+  return response?.message || fallback;
+}
+
 export const AssetDetailModal: React.FC<AssetDetailModalProps> = ({
   projectId,
   asset,
   onClose,
   onAnalyzed,
+  onStatusChanged,
 }) => {
   const [analyzing, setAnalyzing] = useState(false);
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
+  const [transitioningTo, setTransitioningTo] = useState<AssetStatus | null>(null);
+  const [statusError, setStatusError] = useState<string | null>(null);
 
   const fileSize = formatFileSize(asset.file_size);
   const dimensions = formatDimensions(asset.width, asset.height);
@@ -85,6 +102,7 @@ export const AssetDetailModal: React.FC<AssetDetailModalProps> = ({
   const aspectRatio = formatAspectRatioLabel(asset.aspect_ratio);
   const metadataNote = asset.metadata_status ? METADATA_NOTES[asset.metadata_status] : null;
   const canAnalyze = Boolean(asset.has_file);
+  const transitions = asset.allowed_transitions ?? [];
 
   const handleAnalyze = async () => {
     setAnalyzing(true);
@@ -93,10 +111,33 @@ export const AssetDetailModal: React.FC<AssetDetailModalProps> = ({
     try {
       const refreshed = await assetService.analyze(projectId, asset.id);
       onAnalyzed(refreshed);
-    } catch {
-      setAnalyzeError('The file could not be analyzed. Check that it is still attached and try again.');
+    } catch (error) {
+      setAnalyzeError(
+        readErrorMessage(
+          error,
+          'The file could not be analyzed. Check that it is still attached and try again.',
+        ),
+      );
     } finally {
       setAnalyzing(false);
+    }
+  };
+
+  const handleTransition = async (status: AssetStatus) => {
+    setTransitioningTo(status);
+    setStatusError(null);
+
+    try {
+      onStatusChanged(await assetService.transitionStatus(projectId, asset.id, status));
+    } catch (error) {
+      setStatusError(
+        readErrorMessage(
+          error,
+          'The status could not be changed. Reopen this panel to see where the asset is now, then try again.',
+        ),
+      );
+    } finally {
+      setTransitioningTo(null);
     }
   };
 
@@ -192,6 +233,42 @@ export const AssetDetailModal: React.FC<AssetDetailModalProps> = ({
         <DetailGroup title="Notes">
           <DetailRow label="Notes" value={asset.notes} />
         </DetailGroup>
+
+        {transitions.length > 0 && (
+          <DetailGroup title="Lifecycle">
+            <p className="text-[11px] text-slate-500 pb-2">
+              Status records where this asset sits in the media pipeline, so moving it changes what the
+              rest of the workflow can do with it. Only the steps allowed from here are offered.
+            </p>
+            <div className="flex flex-wrap gap-2 pt-1">
+              {transitions.map((transition) => (
+                <Button
+                  key={transition.status}
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => handleTransition(transition.status)}
+                  disabled={transitioningTo !== null}
+                  icon={
+                    transitioningTo === transition.status ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    )
+                  }
+                >
+                  {transitioningTo === transition.status ? 'Moving' : transition.label}
+                </Button>
+              ))}
+            </div>
+          </DetailGroup>
+        )}
+
+        {statusError && (
+          <div className="flex items-start gap-2 p-3 mt-4 rounded-lg bg-rose-950/40 border border-rose-800/50 text-rose-300 text-xs">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>{statusError}</span>
+          </div>
+        )}
 
         {analyzeError && (
           <div className="flex items-start gap-2 p-3 mt-4 rounded-lg bg-rose-950/40 border border-rose-800/50 text-rose-300 text-xs">

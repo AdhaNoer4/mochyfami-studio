@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Enums\AssetStatus;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -25,6 +26,13 @@ class AssetResource extends JsonResource
      * width with a completed status is an image, which has no width problem;
      * the same null with a failed status is a video nobody could read. The
      * two are only distinguishable because the status is published.
+     *
+     * allowed_transitions publishes what the state machine permits from the
+     * current status, so a client can offer the right actions without keeping
+     * its own copy of the graph. It is derived from AssetStatus on every
+     * render, never from anything the client sent, and it is a hint about the
+     * affordance rather than a promise: the server re-checks the transition,
+     * so a stale list can never move an asset somewhere it may not go.
      */
     public function toArray(Request $request): array
     {
@@ -35,6 +43,13 @@ class AssetResource extends JsonResource
             'type_label' => $this->type->label(),
             'status' => $this->status->value,
             'status_label' => $this->status->label(),
+            'allowed_transitions' => collect(AssetStatus::cases())
+                ->filter(fn (AssetStatus $target) => $this->status->canTransitionTo($target))
+                ->map(fn (AssetStatus $target) => [
+                    'status' => $target->value,
+                    'label' => $target->label(),
+                ])
+                ->values(),
             'title' => $this->title,
             'description' => $this->description,
             'file_name' => $this->file_name,

@@ -59,6 +59,7 @@ Route::prefix('v1')->group(function () {
             Route::patch('{asset}', [AssetController::class, 'update'])->whereNumber('asset');
             Route::post('{asset}/file', [AssetController::class, 'uploadFile'])->whereNumber('asset');
             Route::post('{asset}/analyze', [AssetController::class, 'analyze'])->whereNumber('asset');
+            Route::patch('{asset}/status', [AssetController::class, 'transitionStatus'])->whereNumber('asset');
             // Named because AssetResource publishes this endpoint as the
             // preview_url. Generating it from one place means the API contract
             // and the route cannot drift apart.

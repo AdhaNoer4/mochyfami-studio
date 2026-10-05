@@ -130,6 +130,14 @@ export const AssetLibraryPanel: React.FC<AssetLibraryPanelProps> = ({ projectId 
     setDetailAsset(updated);
   };
 
+  // A status change moves the asset between states that the list's own status
+  // filter and sort can depend on, so the list is reloaded and the open panel
+  // takes the refreshed asset, the same way an upload does.
+  const handleStatusChanged = (updated: Asset) => {
+    reload();
+    setDetailAsset(updated);
+  };
+
   const handleUploaded = (updated: Asset) => {
     setUploadAsset(null);
     setSuccessMessage(
@@ -348,6 +356,7 @@ export const AssetLibraryPanel: React.FC<AssetLibraryPanelProps> = ({ projectId 
           asset={detailAsset}
           onClose={() => setDetailAsset(null)}
           onAnalyzed={handleAnalyzed}
+          onStatusChanged={handleStatusChanged}
         />
       )}
 

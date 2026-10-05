@@ -2,12 +2,15 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\AssetStatus;
 use App\Exceptions\AssetFileStorageException;
 use App\Exceptions\InvalidAssetFileTypeException;
+use App\Exceptions\InvalidAssetStatusTransitionException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Asset\GetAssetsRequest;
 use App\Http\Requests\Asset\StoreAssetRequest;
 use App\Http\Requests\Asset\UpdateAssetRequest;
+use App\Http\Requests\Asset\UpdateAssetStatusRequest;
 use App\Http\Requests\Asset\UploadAssetFileRequest;
 use App\Http\Resources\AssetResource;
 use App\Models\Asset;
@@ -189,6 +192,52 @@ class AssetController extends Controller
             new AssetResource($this->metadata->analyse($model)),
             'Technical metadata refreshed.',
             200
+        );
+    }
+
+    /**
+     * Move an asset along its lifecycle.
+     *
+     * Status is separated from the metadata endpoints on purpose. Update
+     * deliberately ignores it, so this is the only route that can change where
+     * an asset sits in the media pipeline, and the state machine is enforced
+     * again in the service rather than being taken from the request.
+     *
+     * The order of the checks matches the metadata endpoints: the asset is
+     * resolved through the project's own relation first, so an id from another
+     * project is simply not there and answers 404, then the update ability is
+     * authorized before anything is written.
+     *
+     * A transition the graph does not allow is a 422 and not a 400: the request
+     * was well formed, the request itself is wrong for this asset's current
+     * state, and the message names both states so a client can correct itself.
+     */
+    public function transitionStatus(UpdateAssetStatusRequest $request, ContentProject $project, int $asset): JsonResponse
+    {
+        try {
+            $model = $this->assetService->findAsset($project, $asset);
+        } catch (ModelNotFoundException $e) {
+            return $this->errorResponse($e->getMessage(), null, 404);
+        }
+
+        Gate::authorize('update', $model);
+
+        try {
+            $updated = $this->assetService->transitionStatus(
+                $model,
+                AssetStatus::from($request->validated()['status'])
+            );
+        } catch (InvalidAssetStatusTransitionException $e) {
+            return $this->errorResponse($e->getMessage(), null, 422);
+        } catch (Throwable $e) {
+            report($e);
+
+            return $this->errorResponse('Unable to update the asset status.', null, 500);
+        }
+
+        return $this->successResponse(
+            new AssetResource($updated),
+            'Asset status updated successfully.'
         );
     }
 

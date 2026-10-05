@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\AssetStatus;
+use App\Exceptions\InvalidAssetStatusTransitionException;
 use App\Models\Asset;
 use App\Models\ContentProject;
 use App\Services\Assets\AssetRequirementFulfillmentService;
@@ -192,6 +193,40 @@ class AssetService
             'attribution' => array_key_exists('attribution', $data) ? $data['attribution'] : $asset->attribution,
             'notes' => array_key_exists('notes', $data) ? $data['notes'] : $asset->notes,
         ])->save();
+
+        return $asset->fresh();
+    }
+
+    /**
+     * Move an asset along its lifecycle, enforcing the state machine.
+     *
+     * This is the only path that writes status, which is what makes status a
+     * server fact rather than a client preference: the metadata endpoints
+     * deliberately drop it, and createAsset always starts an asset at pending.
+     *
+     * The graph is re-read from AssetStatus on every call instead of trusting
+     * anything the client said was reachable, so a hand written request cannot
+     * skip a step.
+     *
+     * @throws InvalidAssetStatusTransitionException
+     */
+    public function transitionStatus(Asset $asset, AssetStatus $status): Asset
+    {
+        $current = $asset->status;
+
+        if ($current === $status) {
+            throw new InvalidAssetStatusTransitionException(
+                "Asset is already in {$current->value} status."
+            );
+        }
+
+        if (! $current->canTransitionTo($status)) {
+            throw new InvalidAssetStatusTransitionException(
+                "Asset cannot transition from {$current->value} to {$status->value}."
+            );
+        }
+
+        $asset->update(['status' => $status]);
 
         return $asset->fresh();
     }
