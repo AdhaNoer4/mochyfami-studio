@@ -73,4 +73,9 @@ class ContentProject extends Model
     {
         return $this->hasMany(Asset::class, 'content_project_id');
     }
+
+    public function ttsTracks(): HasMany
+    {
+        return $this->hasMany(TtsTrack::class, 'content_project_id');
+    }
 }

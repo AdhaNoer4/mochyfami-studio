@@ -15,6 +15,7 @@ use App\Policies\ResearchSourcePolicy;
 use App\Services\AI\ResearchGenerationProviderRegistry;
 use App\Services\AI\ScriptGenerationProviderRegistry;
 use App\Services\Research\SearchProviderRegistry;
+use App\Services\TTS\TtsProviderRegistry;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 
@@ -35,6 +36,10 @@ class AppServiceProvider extends ServiceProvider
 
         $this->app->singleton(ResearchGenerationProviderRegistry::class, function () {
             return new ResearchGenerationProviderRegistry(config('ai.research.providers', []));
+        });
+
+        $this->app->singleton(TtsProviderRegistry::class, function () {
+            return new TtsProviderRegistry(config('tts.providers', []));
         });
     }
 
