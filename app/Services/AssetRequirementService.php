@@ -7,6 +7,7 @@ use App\Enums\AssetRequirementStatus;
 use App\Enums\AssetRequirementType;
 use App\Exceptions\DuplicateAssetRequirementAssetException;
 use App\Exceptions\InvalidAssetRequirementStatusTransitionException;
+use App\Exceptions\TtsAssetRequirementCandidateException;
 use App\Models\Asset;
 use App\Models\AssetRequirement;
 use App\Models\ContentProject;
@@ -278,6 +279,7 @@ class AssetRequirementService
      *
      * @throws DuplicateAssetRequirementAssetException
      * @throws ModelNotFoundException
+     * @throws TtsAssetRequirementCandidateException
      */
     public function attachAsset(
         ContentProject $project,
@@ -288,6 +290,12 @@ class AssetRequirementService
     ): Asset {
         $requirement = $this->findRequirement($project, $versionNumber, $itemId, $requirementId);
         $asset = $this->assetService->findAsset($project, $assetId);
+
+        if ($asset->isTtsGenerated()) {
+            throw new TtsAssetRequirementCandidateException(
+                'A TTS-generated asset cannot be attached to an asset requirement.'
+            );
+        }
 
         if ($requirement->assets()->whereKey($asset->getKey())->exists()) {
             throw new DuplicateAssetRequirementAssetException(

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\TtsTrackStatus;
+use App\Exceptions\InvalidTtsTrackStatusTransitionException;
 use Database\Factories\TtsTrackFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -56,5 +57,27 @@ class TtsTrack extends Model
     public function asset(): BelongsTo
     {
         return $this->belongsTo(Asset::class, 'asset_id');
+    }
+
+    /**
+     * Move the track through its state machine, refusing anything the graph
+     * does not allow.
+     *
+     * The graph itself lives on TtsTrackStatus; this is the single spot that
+     * enforces it, so a track can never be put into an arbitrary status by
+     * calling update() directly instead. The lifecycle owner (the generation
+     * service and the archive handler) is the only legitimate caller.
+     *
+     * @throws InvalidTtsTrackStatusTransitionException
+     */
+    public function transitionTo(TtsTrackStatus $target): void
+    {
+        if (! $this->status->canTransitionTo($target)) {
+            throw new InvalidTtsTrackStatusTransitionException(
+                "Cannot transition TTS track from '{$this->status->value}' to '{$target->value}'."
+            );
+        }
+
+        $this->update(['status' => $target]);
     }
 }

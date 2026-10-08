@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Asset extends Model
 {
@@ -113,5 +114,30 @@ class Asset extends Model
     public function assetRequirements(): BelongsToMany
     {
         return $this->belongsToMany(AssetRequirement::class, 'asset_requirement_asset')->withTimestamps();
+    }
+
+    /**
+     * The TTS tracks this asset is the stored audio of.
+     *
+     * A track can be archived while its asset lives on, so an asset keeps the
+     * relation even after every track that pointed at it has moved into its
+     * terminal state. The relation is what separates a TTS-generated audio
+     * from an ordinary audio upload: the two are indistinguishable by type.
+     */
+    public function ttsTracks(): HasMany
+    {
+        return $this->hasMany(TtsTrack::class, 'asset_id');
+    }
+
+    /**
+     * Whether this asset is the audio of at least one TTS track.
+     *
+     * Shared by the asset requirement guards, so the definition of "TTS
+     * asset" lives in one place: an asset is TTS-generated because a TtsTrack
+     * references it, never because its type happens to be audio.
+     */
+    public function isTtsGenerated(): bool
+    {
+        return $this->ttsTracks()->exists();
     }
 }

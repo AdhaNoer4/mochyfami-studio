@@ -24,6 +24,7 @@ use App\Http\Controllers\Api\V1\ScriptGenerationController;
 use App\Http\Controllers\Api\V1\ScriptQualityController;
 use App\Http\Controllers\Api\V1\ScriptVersionController;
 use App\Http\Controllers\Api\V1\ScriptVersionResearchClaimController;
+use App\Http\Controllers\Api\V1\TtsTrackController;
 use App\Http\Controllers\Api\V1\VisualPlanAssetRequirementController;
 use App\Http\Controllers\Api\V1\VisualPlanController;
 use App\Http\Controllers\Api\V1\VisualPlanItemController;
@@ -150,6 +151,11 @@ Route::prefix('v1')->group(function () {
                 Route::post('items/{item}/asset-requirements/{requirement}/select', [VisualPlanAssetRequirementController::class, 'selectAsset'])->whereNumber(['item', 'requirement']);
                 Route::delete('items/{item}/asset-requirements/{requirement}/select', [VisualPlanAssetRequirementController::class, 'clearSelection'])->whereNumber(['item', 'requirement']);
                 Route::post('items/{item}/asset-requirements/{requirement}/fulfill', [VisualPlanAssetRequirementController::class, 'fulfill'])->whereNumber(['item', 'requirement']);
+
+                Route::get('items/{item}/tts', [TtsTrackController::class, 'index'])->whereNumber('item');
+                Route::post('items/{item}/tts', [TtsTrackController::class, 'store'])->whereNumber('item');
+                Route::post('items/{item}/tts/{track}/regenerate', [TtsTrackController::class, 'regenerate'])->whereNumber(['item', 'track']);
+                Route::delete('items/{item}/tts/{track}', [TtsTrackController::class, 'destroy'])->whereNumber(['item', 'track']);
             });
         });
     });

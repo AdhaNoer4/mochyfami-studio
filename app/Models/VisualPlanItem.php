@@ -45,4 +45,15 @@ class VisualPlanItem extends Model
     {
         return $this->hasMany(AssetRequirement::class, 'visual_plan_item_id');
     }
+
+    /**
+     * Every TTS synthesis ever requested for this item, oldest first.
+     *
+     * A track is a history entry: regeneration never replaces an earlier
+     * track, so this relation grows in place and stays fully auditable.
+     */
+    public function ttsTracks(): HasMany
+    {
+        return $this->hasMany(TtsTrack::class, 'visual_plan_item_id');
+    }
 }

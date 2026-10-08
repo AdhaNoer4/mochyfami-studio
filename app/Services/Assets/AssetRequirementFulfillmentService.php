@@ -6,6 +6,7 @@ use App\Enums\AssetRequirementStatus;
 use App\Exceptions\AssetNotCandidateException;
 use App\Exceptions\AssetNotSelectedException;
 use App\Exceptions\AssetRequirementNotFulfillableException;
+use App\Exceptions\TtsAssetRequirementCandidateException;
 use App\Models\Asset;
 use App\Models\AssetRequirement;
 use App\Models\ContentProject;
@@ -85,6 +86,7 @@ class AssetRequirementFulfillmentService
      *
      * @throws AssetNotCandidateException
      * @throws ModelNotFoundException
+     * @throws TtsAssetRequirementCandidateException
      */
     public function select(
         ContentProject $project,
@@ -95,6 +97,12 @@ class AssetRequirementFulfillmentService
     ): AssetRequirement {
         $requirement = $this->resolveRequirement($project, $versionNumber, $itemId, $requirementId);
         $asset = $this->assetService->findAsset($project, $assetId);
+
+        if ($asset->isTtsGenerated()) {
+            throw new TtsAssetRequirementCandidateException(
+                'A TTS-generated asset cannot be selected for an asset requirement.'
+            );
+        }
 
         if ($requirement->selected_asset_id === $asset->getKey()) {
             return $requirement;

@@ -8,6 +8,7 @@ use App\Exceptions\AssetNotSelectedException;
 use App\Exceptions\AssetRequirementNotFulfillableException;
 use App\Exceptions\DuplicateAssetRequirementAssetException;
 use App\Exceptions\InvalidAssetRequirementStatusTransitionException;
+use App\Exceptions\TtsAssetRequirementCandidateException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\VisualPlan\AttachAssetToRequirementRequest;
 use App\Http\Requests\VisualPlan\SelectRequirementAssetRequest;
@@ -276,6 +277,8 @@ class VisualPlanAssetRequirementController extends Controller
             );
         } catch (AssetNotCandidateException $e) {
             return $this->errorResponse($e->getMessage(), null, 422);
+        } catch (TtsAssetRequirementCandidateException $e) {
+            return $this->errorResponse($e->getMessage(), null, 422);
         } catch (ModelNotFoundException $e) {
             return $this->errorResponse($e->getMessage(), null, 404);
         } catch (Throwable $e) {
@@ -403,6 +406,8 @@ class VisualPlanAssetRequirementController extends Controller
             );
         } catch (DuplicateAssetRequirementAssetException $e) {
             return $this->errorResponse($e->getMessage(), null, 409);
+        } catch (TtsAssetRequirementCandidateException $e) {
+            return $this->errorResponse($e->getMessage(), null, 422);
         } catch (ModelNotFoundException $e) {
             return $this->errorResponse($e->getMessage(), null, 404);
         } catch (Throwable $e) {
