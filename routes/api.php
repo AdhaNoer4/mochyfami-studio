@@ -24,6 +24,7 @@ use App\Http\Controllers\Api\V1\ScriptGenerationController;
 use App\Http\Controllers\Api\V1\ScriptQualityController;
 use App\Http\Controllers\Api\V1\ScriptVersionController;
 use App\Http\Controllers\Api\V1\ScriptVersionResearchClaimController;
+use App\Http\Controllers\Api\V1\TtsReadinessController;
 use App\Http\Controllers\Api\V1\TtsTrackController;
 use App\Http\Controllers\Api\V1\VisualPlanAssetRequirementController;
 use App\Http\Controllers\Api\V1\VisualPlanController;
@@ -129,6 +130,7 @@ Route::prefix('v1')->group(function () {
                 Route::get('asset-manifest', [AssetProductionManifestController::class, 'show']);
                 Route::get('production-handoff', [AssetProductionHandoffController::class, 'show']);
                 Route::get('production-spec', [AssetProductionSpecificationController::class, 'show']);
+                Route::get('tts-readiness', [TtsReadinessController::class, 'show']);
 
                 Route::get('items', [VisualPlanItemController::class, 'index']);
                 Route::post('items', [VisualPlanItemController::class, 'store']);
