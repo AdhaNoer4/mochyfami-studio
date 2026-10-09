@@ -48,6 +48,56 @@ class TtsReadinessService
      */
     public function evaluate(ContentProject $project, int $versionNumber): array
     {
+        $report = $this->buildReport($project, $versionNumber);
+
+        return [
+            'ready' => $report['ready'],
+            'blockers' => $report['blockers'],
+            'warnings' => $report['warnings'],
+            'info' => $report['info'],
+        ];
+    }
+
+    /**
+     * Evaluate readiness with the per-item projection the TTS production
+     * manifest needs.
+     *
+     * Same single pass as evaluate(), but each item also carries its selected
+     * current track (or null), its current narration hash, and its own scoped
+     * blocker/warning lists. The manifest reshapes this result and never
+     * re-implements a selection rule.
+     *
+     * @return array{
+     *     ready: bool,
+     *     blockers: array<int, array<string, mixed>>,
+     *     warnings: array<int, array<string, mixed>>,
+     *     info: array{total_items: int, ready_items: int, items_without_current_audio: int, completed_tracks: int, provider: array{name: string, available: bool}},
+     *     script_version_id: int|null,
+     *     visual_plan_id: int|null,
+     *     items: array<int, array{order: int, visual_plan_item_id: int, narration_hash: string, usable: TtsTrack|null, blockers: array<int, array<string, mixed>>, warnings: array<int, array<string, mixed>>, ready: bool}>
+     * }
+     */
+    public function evaluateWithItems(ContentProject $project, int $versionNumber): array
+    {
+        return $this->buildReport($project, $versionNumber);
+    }
+
+    /**
+     * Build the projection once, serving both the public report and the
+     * manifest in a single pass so the two can never disagree.
+     *
+     * @return array{
+     *     ready: bool,
+     *     blockers: array<int, array<string, mixed>>,
+     *     warnings: array<int, array<string, mixed>>,
+     *     info: array{total_items: int, ready_items: int, items_without_current_audio: int, completed_tracks: int, provider: array{name: string, available: bool}},
+     *     script_version_id: int|null,
+     *     visual_plan_id: int|null,
+     *     items: array<int, array{order: int, visual_plan_item_id: int, narration_hash: string, usable: TtsTrack|null, blockers: array<int, array<string, mixed>>, warnings: array<int, array<string, mixed>>, ready: bool}>
+     * }
+     */
+    private function buildReport(ContentProject $project, int $versionNumber): array
+    {
         $plan = $this->visualPlanService->getPlan($project, $versionNumber);
 
         $blockers = [];
@@ -55,6 +105,7 @@ class TtsReadinessService
         $totalItems = 0;
         $readyItems = 0;
         $completedTracks = 0;
+        $items = [];
 
         if ($plan === null) {
             $blockers[] = $this->issue(
@@ -64,21 +115,21 @@ class TtsReadinessService
         } else {
             $plan->loadMissing(['scriptVersion', 'items.ttsTracks.asset']);
 
-            $items = $plan->items->sortBy([
+            $planItems = $plan->items->sortBy([
                 ['order', 'asc'],
                 ['id', 'asc'],
             ])->values();
 
-            $totalItems = $items->count();
+            $totalItems = $planItems->count();
 
-            if ($items->isEmpty()) {
+            if ($planItems->isEmpty()) {
                 $blockers[] = $this->issue(
                     'NO_VISUAL_PLAN_ITEMS',
                     'The visual plan does not contain any items.'
                 );
             } else {
-                foreach ($items as $item) {
-                    [$itemBlockers, $itemWarnings, $ready] = $this->evaluateItem($item);
+                foreach ($planItems as $item) {
+                    [$itemBlockers, $itemWarnings, $ready, $usable, $narrationHash] = $this->evaluateItem($item);
 
                     $blockers = array_merge($blockers, $itemBlockers);
                     $warnings = array_merge($warnings, $itemWarnings);
@@ -90,6 +141,16 @@ class TtsReadinessService
                     $completedTracks += $item->ttsTracks
                         ->filter(fn (TtsTrack $track): bool => $track->status === TtsTrackStatus::Completed)
                         ->count();
+
+                    $items[] = [
+                        'order' => $item->order,
+                        'visual_plan_item_id' => $item->getKey(),
+                        'narration_hash' => $narrationHash,
+                        'usable' => $usable,
+                        'blockers' => $itemBlockers,
+                        'warnings' => $itemWarnings,
+                        'ready' => $ready,
+                    ];
                 }
             }
         }
@@ -118,20 +179,24 @@ class TtsReadinessService
                     'available' => $providerAvailable,
                 ],
             ],
+            'script_version_id' => $plan?->script_version_id,
+            'visual_plan_id' => $plan?->getKey(),
+            'items' => $items,
         ];
     }
 
     /**
-     * Classify one visual plan item into blockers, warnings and a per-item
-     * ready flag.
+     * Classify one visual plan item into blockers, warnings, a per-item ready
+     * flag, its selected current track and its current narration hash.
      *
-     * @return array{0: array<int, array<string, mixed>>, 1: array<int, array<string, mixed>>, 2: bool}
+     * @return array{0: array<int, array<string, mixed>>, 1: array<int, array<string, mixed>>, 2: bool, 3: TtsTrack|null, 4: string}
      */
     private function evaluateItem(VisualPlanItem $item): array
     {
         $narration = (string) $item->narration_text;
         $blockers = [];
         $warnings = [];
+        $currentHash = NarrationHasher::hash($narration);
 
         if (trim($narration) === '') {
             $blockers[] = $this->itemIssue(
@@ -140,10 +205,9 @@ class TtsReadinessService
                 $item
             );
 
-            return [$blockers, $warnings, false];
+            return [$blockers, $warnings, false, null, $currentHash];
         }
 
-        $currentHash = NarrationHasher::hash($narration);
         $usable = $this->currentUsableTrack($item, $currentHash);
 
         if ($usable !== null) {
@@ -151,7 +215,7 @@ class TtsReadinessService
             $this->addMetadataWarning($warnings, $item, $usable);
             $this->addLongNarrationWarning($warnings, $item, $narration);
 
-            return [$blockers, $warnings, true];
+            return [$blockers, $warnings, true, $usable, $currentHash];
         }
 
         $hasFailedCurrentAttempt = $item->ttsTracks->contains(
@@ -182,7 +246,7 @@ class TtsReadinessService
 
         $this->addLongNarrationWarning($warnings, $item, $narration);
 
-        return [$blockers, $warnings, false];
+        return [$blockers, $warnings, false, null, $currentHash];
     }
 
     /**
