@@ -1098,3 +1098,148 @@ export interface AssetFilterParams {
   direction?: AssetSortDirection;
 }
 
+/**
+ * The lifecycle of a TTS track, mirroring the backend enum. Pending and
+ * generating are transient; completed has a stored asset; failed keeps a safe,
+ * displayable error; archived keeps its asset and its file but is no longer a
+ * candidate for current audio.
+ */
+export type TtsTrackStatus = 'pending' | 'generating' | 'completed' | 'failed' | 'archived';
+
+/**
+ * One synthesis history entry for a visual plan item.
+ *
+ * narration_snapshot is the exact narration the track was spoken from and
+ * narration_hash is its fingerprint; neither reveals a storage path. Audio is
+ * reached only through preview_url, which is the same authenticated asset
+ * preview route the asset library uses. is_stale is null when the owning plan
+ * item is not loaded (a track viewed outside its plan), otherwise true when the
+ * item's current narration differs from what this track was spoken from.
+ */
+export interface TtsTrack {
+  id: number;
+  visual_plan_item_id: number;
+  asset_id: number | null;
+  provider: string;
+  model: string | null;
+  voice: string;
+  language: string | null;
+  speed: number | null;
+  status: TtsTrackStatus;
+  status_label: string;
+  duration_seconds: number | null;
+  narration_snapshot: string;
+  narration_hash: string;
+  is_stale: boolean | null;
+  error: string | null;
+  preview_url: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface TtsTrackList {
+  tracks: TtsTrack[];
+  current_narration_hash: string | null;
+}
+
+/**
+ * Only the fields a user can meaningfully choose about a synthesis. provider
+ * and model are deliberately absent: the backend answers for them, so the
+ * client never overrides the registered default provider.
+ */
+export interface TtsGeneratePayload {
+  voice: string;
+  speed?: number;
+  language?: string;
+}
+
+/**
+ * One readiness/manifest issue. Blockers and warnings only ever contain
+ * failures, so there is no passed flag: the presence of an entry is the
+ * problem. visual_plan_item_id and order are only present on item-scoped issues.
+ */
+export interface TtsIssue {
+  code: string;
+  message: string;
+  visual_plan_item_id?: number | null;
+  order?: number | null;
+}
+
+export interface TtsProviderInfo {
+  name: string;
+  available: boolean;
+}
+
+export interface TtsReadinessInfo {
+  total_items: number;
+  ready_items: number;
+  items_without_current_audio: number;
+  completed_tracks: number;
+  provider: TtsProviderInfo;
+}
+
+/**
+ * The readiness report for one script version. The backend owns every rule:
+ * this is a display-only projection and the UI never re-derives a decision
+ * from it.
+ */
+export interface TtsReadiness {
+  ready: boolean;
+  blockers: TtsIssue[];
+  warnings: TtsIssue[];
+  info: TtsReadinessInfo;
+}
+
+/**
+ * The current-audio segment of a manifest item.
+ *
+ * available mirrors the readiness per-item flag. When not available the rest of
+ * the fields are absent; when available but the stored metadata is unverified,
+ * duration_seconds and mime_type stay null and METADATA_NOT_VERIFIED surfaces
+ * as a warning. Asset id and the verified-only fields are never a storage path.
+ */
+export interface TtsManifestAudio {
+  available: boolean;
+  tts_track_id?: number | null;
+  asset_id?: number | null;
+  duration_seconds?: number | null;
+  mime_type?: string | null;
+  provider?: string;
+  model?: string | null;
+  voice?: string;
+  language?: string | null;
+  speed?: number | null;
+}
+
+export interface TtsManifestItem {
+  order: number;
+  visual_plan_item_id: number;
+  narration: {
+    hash: string;
+  };
+  audio: TtsManifestAudio;
+  blockers: TtsIssue[];
+  warnings: TtsIssue[];
+}
+
+export interface TtsManifestInfo {
+  total_items: number;
+  items_with_audio: number;
+  items_without_audio: number;
+}
+
+/**
+ * The TTS production manifest for one script version. visual_plan_id is null
+ * while the version has no visual plan, which surfaces as a NO_VISUAL_PLAN
+ * blocker and an empty item list rather than an error.
+ */
+export interface TtsManifest {
+  ready: boolean;
+  script_version_id: number;
+  visual_plan_id: number | null;
+  items: TtsManifestItem[];
+  blockers: TtsIssue[];
+  warnings: TtsIssue[];
+  info: TtsManifestInfo;
+}
+
