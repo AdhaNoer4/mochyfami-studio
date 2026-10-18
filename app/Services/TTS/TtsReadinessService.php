@@ -3,12 +3,14 @@
 namespace App\Services\TTS;
 
 use App\Enums\AssetMetadataStatus;
+use App\Enums\TtsTrackSource;
 use App\Enums\TtsTrackStatus;
 use App\Exceptions\TtsProviderException;
 use App\Models\ContentProject;
 use App\Models\TtsTrack;
 use App\Models\VisualPlanItem;
 use App\Services\VisualPlanService;
+use Illuminate\Support\Collection;
 
 /**
  * Evaluates TTS readiness for one script version as a read-only projection.
@@ -24,6 +26,11 @@ use App\Services\VisualPlanService;
  * latest completed track whose narration hash matches the item's current
  * narration is usable audio. A failed attempt only blocks the item when it
  * belongs to that current narration and nothing usable supersedes it.
+ *
+ * Readiness is an automated TTS concept, so only tracks whose source is tts
+ * are considered: a manual dubbing rendition never satisfies it, no matter how
+ * complete its metadata looks. The manifest reshapes this same projection, so
+ * isolating the source here keeps both flows honest.
  */
 class TtsReadinessService
 {
@@ -138,7 +145,7 @@ class TtsReadinessService
                         $readyItems++;
                     }
 
-                    $completedTracks += $item->ttsTracks
+                    $completedTracks += $this->automatedTracks($item)
                         ->filter(fn (TtsTrack $track): bool => $track->status === TtsTrackStatus::Completed)
                         ->count();
 
@@ -197,6 +204,7 @@ class TtsReadinessService
         $blockers = [];
         $warnings = [];
         $currentHash = NarrationHasher::hash($narration);
+        $tracks = $this->automatedTracks($item);
 
         if (trim($narration) === '') {
             $blockers[] = $this->itemIssue(
@@ -208,7 +216,7 @@ class TtsReadinessService
             return [$blockers, $warnings, false, null, $currentHash];
         }
 
-        $usable = $this->currentUsableTrack($item, $currentHash);
+        $usable = $this->currentUsableTrack($tracks, $currentHash);
 
         if ($usable !== null) {
             $this->addDurationMismatchWarning($warnings, $item, $usable);
@@ -218,7 +226,7 @@ class TtsReadinessService
             return [$blockers, $warnings, true, $usable, $currentHash];
         }
 
-        $hasFailedCurrentAttempt = $item->ttsTracks->contains(
+        $hasFailedCurrentAttempt = $tracks->contains(
             fn (TtsTrack $track): bool => $track->status === TtsTrackStatus::Failed && $track->narration_hash === $currentHash
         );
 
@@ -236,7 +244,7 @@ class TtsReadinessService
             );
         }
 
-        if ($this->hasStaleGeneratedHistory($item, $currentHash)) {
+        if ($this->hasStaleGeneratedHistory($tracks, $currentHash)) {
             $warnings[] = $this->itemIssue(
                 'NARRATION_CHANGED_SINCE_SYNTHESIS',
                 'The narration changed after a previous synthesis.',
@@ -250,15 +258,34 @@ class TtsReadinessService
     }
 
     /**
+     * The automated TTS tracks of an item.
+     *
+     * A manual dubbing rendition is a track of the same item but never part of
+     * the automated pipeline, so it must not contribute to readiness, to the
+     * manifest, or to the failed/stale signals derived from track history. The
+     * source column is the only authority; provider or voice strings are not.
+     *
+     * @return Collection<int, TtsTrack>
+     */
+    private function automatedTracks(VisualPlanItem $item): Collection
+    {
+        return $item->ttsTracks->filter(
+            fn (TtsTrack $track): bool => $track->source === TtsTrackSource::Tts
+        );
+    }
+
+    /**
      * The latest completed track whose narration hash matches the item's
      * current narration, or null when no such audio exists.
      *
      * A failed or archived track is never usable, and a stale completed track
      * stays invisible until its narration hash matches again.
+     *
+     * @param  Collection<int, TtsTrack>  $tracks
      */
-    private function currentUsableTrack(VisualPlanItem $item, string $currentHash): ?TtsTrack
+    private function currentUsableTrack(Collection $tracks, string $currentHash): ?TtsTrack
     {
-        return $item->ttsTracks
+        return $tracks
             ->filter(
                 fn (TtsTrack $track): bool => $track->status === TtsTrackStatus::Completed && $track->narration_hash === $currentHash
             )
@@ -273,10 +300,12 @@ class TtsReadinessService
      *
      * A pending or generating attempt has not been generated yet, so it cannot
      * prove narration staleness on its own.
+     *
+     * @param  Collection<int, TtsTrack>  $tracks
      */
-    private function hasStaleGeneratedHistory(VisualPlanItem $item, string $currentHash): bool
+    private function hasStaleGeneratedHistory(Collection $tracks, string $currentHash): bool
     {
-        return $item->ttsTracks->contains(
+        return $tracks->contains(
             fn (TtsTrack $track): bool => $track->narration_hash !== $currentHash
                 && (
                     $track->status === TtsTrackStatus::Completed

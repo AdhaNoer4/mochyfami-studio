@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Enums\AssetType;
 use App\Enums\ScriptStatus;
+use App\Enums\TtsTrackSource;
 use App\Enums\TtsTrackStatus;
 use App\Enums\VisualPlanItemType;
 use App\Enums\VisualPlanSection;
@@ -669,5 +670,81 @@ class TtsReadinessServiceTest extends TestCase
         $this->service()->evaluate($project, 1);
 
         $this->assertFalse($spy->synthesized);
+    }
+
+    #[Test]
+    public function a_manual_completed_track_does_not_satisfy_automated_readiness(): void
+    {
+        $user = User::factory()->create();
+        $project = $this->projectFor($user);
+        $this->scriptVersionFor($project);
+        $plan = $this->planFor($project);
+        $item = $this->itemFor($plan);
+        $asset = $this->verifiedAudio($project);
+
+        $this->trackFor($project, $item, [
+            'source' => TtsTrackSource::Manual,
+            'asset_id' => $asset->id,
+            'duration_seconds' => 5,
+        ]);
+
+        $report = $this->service()->evaluate($project, 1);
+
+        $this->assertTrue($report['ready']);
+        $this->assertSame([], $report['blockers']);
+        $this->assertSame(['ITEM_WITHOUT_TRACK'], $this->codes($report['warnings']));
+        $this->assertSame(0, $report['info']['ready_items']);
+        $this->assertSame(0, $report['info']['completed_tracks']);
+    }
+
+    #[Test]
+    public function a_manual_failed_track_does_not_block_readiness(): void
+    {
+        $user = User::factory()->create();
+        $project = $this->projectFor($user);
+        $this->scriptVersionFor($project);
+        $plan = $this->planFor($project);
+        $item = $this->itemFor($plan);
+
+        $this->trackFor($project, $item, [
+            'source' => TtsTrackSource::Manual,
+            'status' => TtsTrackStatus::Failed,
+            'error' => 'A manual capture was rejected before storage.',
+        ]);
+
+        $report = $this->service()->evaluate($project, 1);
+
+        $this->assertTrue($report['ready']);
+        $this->assertSame([], $report['blockers']);
+        $this->assertSame(['ITEM_WITHOUT_TRACK'], $this->codes($report['warnings']));
+        $this->assertSame(0, $report['info']['completed_tracks']);
+    }
+
+    #[Test]
+    public function an_automated_track_is_selected_over_a_newer_manual_rendition(): void
+    {
+        $user = User::factory()->create();
+        $project = $this->projectFor($user);
+        $this->scriptVersionFor($project);
+        $plan = $this->planFor($project);
+        $item = $this->itemFor($plan);
+
+        $automated = $this->trackFor($project, $item, [
+            'asset_id' => $this->verifiedAudio($project)->id,
+            'duration_seconds' => 5,
+        ]);
+
+        $this->trackFor($project, $item, [
+            'source' => TtsTrackSource::Manual,
+            'asset_id' => $this->verifiedAudio($project)->id,
+            'duration_seconds' => 5,
+        ]);
+
+        $projection = $this->service()->evaluateWithItems($project, 1);
+
+        $this->assertNotNull($projection['items'][0]['usable']);
+        $this->assertSame($automated->id, $projection['items'][0]['usable']->id);
+        $this->assertSame(1, $projection['info']['ready_items']);
+        $this->assertSame(1, $projection['info']['completed_tracks']);
     }
 }

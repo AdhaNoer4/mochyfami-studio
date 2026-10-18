@@ -2,9 +2,12 @@
 
 namespace Database\Factories;
 
+use App\Enums\ManualDubbingApprovalStatus;
+use App\Enums\TtsTrackSource;
 use App\Enums\TtsTrackStatus;
 use App\Models\ContentProject;
 use App\Models\TtsTrack;
+use App\Models\User;
 use App\Models\VisualPlanItem;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -72,6 +75,25 @@ class TtsTrackFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'status' => TtsTrackStatus::Archived,
+        ]);
+    }
+
+    /**
+     * A human-recorded dubbing rendition.
+     *
+     * provider and voice keep the strings 'manual' because the columns are
+     * still NOT NULL: a human source has no synthesis provider, and the
+     * recording metadata lives in the manual-dubbing columns instead.
+     */
+    public function manual(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'source' => TtsTrackSource::Manual,
+            'provider' => 'manual',
+            'voice' => 'manual',
+            'uploader_id' => User::factory(),
+            'recorded_at' => now(),
+            'approval_status' => ManualDubbingApprovalStatus::Draft,
         ]);
     }
 }

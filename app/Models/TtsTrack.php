@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Enums\ManualDubbingApprovalStatus;
+use App\Enums\TtsTrackSource;
 use App\Enums\TtsTrackStatus;
 use App\Exceptions\InvalidTtsTrackStatusTransitionException;
 use Database\Factories\TtsTrackFactory;
@@ -13,6 +15,15 @@ class TtsTrack extends Model
 {
     /** @use HasFactory<TtsTrackFactory> */
     use HasFactory;
+
+    /**
+     * Mirrors the column default so a freshly created track answers what it
+     * is before anyone refreshes it from the database. Kept in sync with the
+     * migration that introduced the source column.
+     */
+    protected $attributes = [
+        'source' => 'tts',
+    ];
 
     /**
      * content_project_id is deliberately absent for the same reason it is on
@@ -33,6 +44,13 @@ class TtsTrack extends Model
         'narration_snapshot',
         'narration_hash',
         'error',
+        'source',
+        'uploader_id',
+        'recorded_at',
+        'approval_status',
+        'approved_at',
+        'approved_by',
+        'notes',
     ];
 
     protected function casts(): array
@@ -41,6 +59,10 @@ class TtsTrack extends Model
             'status' => TtsTrackStatus::class,
             'speed' => 'decimal:3',
             'duration_seconds' => 'integer',
+            'source' => TtsTrackSource::class,
+            'approval_status' => ManualDubbingApprovalStatus::class,
+            'recorded_at' => 'datetime',
+            'approved_at' => 'datetime',
         ];
     }
 
@@ -57,6 +79,16 @@ class TtsTrack extends Model
     public function asset(): BelongsTo
     {
         return $this->belongsTo(Asset::class, 'asset_id');
+    }
+
+    public function uploader(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'uploader_id');
+    }
+
+    public function approver(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'approved_by');
     }
 
     /**

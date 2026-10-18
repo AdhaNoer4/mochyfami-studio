@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Enums\AssetType;
 use App\Enums\ScriptStatus;
+use App\Enums\TtsTrackSource;
 use App\Enums\VisualPlanItemType;
 use App\Enums\VisualPlanSection;
 use App\Models\Asset;
@@ -167,6 +168,25 @@ class TtsAssetExclusionTest extends TestCase
         ]);
     }
 
+    private function manualTrack(ContentProject $project, VisualPlanItem $item, Asset $asset): TtsTrack
+    {
+        return $project->ttsTracks()->create([
+            'visual_plan_item_id' => $item->id,
+            'asset_id' => $asset->id,
+            'provider' => 'manual',
+            'model' => null,
+            'voice' => 'manual',
+            'language' => null,
+            'speed' => '1.000',
+            'status' => 'completed',
+            'duration_seconds' => 5,
+            'narration_snapshot' => 'Narration line 1.',
+            'narration_hash' => hash('sha256', 'Narration line 1.'),
+            'error' => null,
+            'source' => TtsTrackSource::Manual,
+        ]);
+    }
+
     private function attachUrl(ContentProject $project, AssetRequirement $requirement): string
     {
         return "/api/v1/projects/{$project->id}/script/versions/1/visual-plan"
@@ -271,5 +291,39 @@ class TtsAssetExclusionTest extends TestCase
             ->assertJsonPath('message', 'A TTS-generated asset cannot be attached to an asset requirement.');
 
         $this->assertSame(0, DB::table('asset_requirement_asset')->where('asset_requirement_id', $requirement->id)->count());
+    }
+
+    #[Test]
+    public function test_an_asset_referenced_by_a_tts_track_is_tts_generated(): void
+    {
+        Http::preventStrayRequests();
+        $user = User::factory()->create();
+        $project = $this->readyProject($user);
+        $item = $this->itemOf($this->planWithItem($project));
+        $asset = $this->audioOf($project);
+
+        $this->ttsAsset($project, $item, $asset);
+
+        $this->assertTrue($asset->fresh()->isTtsGenerated());
+    }
+
+    #[Test]
+    public function test_an_asset_referenced_only_by_a_manual_track_is_not_tts_generated(): void
+    {
+        Http::preventStrayRequests();
+        $user = User::factory()->create();
+        $project = $this->readyProject($user);
+        $item = $this->itemOf($this->planWithItem($project));
+        $requirement = $this->requirementFor($item);
+        $asset = $this->audioOf($project);
+
+        $this->manualTrack($project, $item, $asset);
+
+        $this->assertFalse($asset->fresh()->isTtsGenerated());
+
+        $this->actingAs($user, 'sanctum')
+            ->postJson($this->attachUrl($project, $requirement), ['asset_id' => $asset->id])
+            ->assertCreated()
+            ->assertJsonPath('data.id', $asset->id);
     }
 }

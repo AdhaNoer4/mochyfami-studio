@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\AssetMetadataStatus;
 use App\Enums\AssetStatus;
 use App\Enums\AssetType;
+use App\Enums\TtsTrackSource;
 use Database\Factories\AssetFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -130,14 +131,16 @@ class Asset extends Model
     }
 
     /**
-     * Whether this asset is the audio of at least one TTS track.
+     * Whether this asset is the audio of at least one automated TTS track.
      *
      * Shared by the asset requirement guards, so the definition of "TTS
-     * asset" lives in one place: an asset is TTS-generated because a TtsTrack
-     * references it, never because its type happens to be audio.
+     * asset" lives in one place: an asset is TTS-generated because a tts
+     * sourced TtsTrack references it, never because its type happens to be
+     * audio. A track recorded by a human is not synthesis output, so a manual
+     * track alone never makes its asset TTS-generated.
      */
     public function isTtsGenerated(): bool
     {
-        return $this->ttsTracks()->exists();
+        return $this->ttsTracks()->where('source', TtsTrackSource::Tts)->exists();
     }
 }

@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Enums\AssetType;
 use App\Enums\ScriptStatus;
+use App\Enums\TtsTrackSource;
 use App\Enums\TtsTrackStatus;
 use App\Enums\VisualPlanItemType;
 use App\Enums\VisualPlanSection;
@@ -640,5 +641,58 @@ class TtsManifestServiceTest extends TestCase
         $this->assertSame($counts['assets'], Asset::count());
         $this->assertSame($counts['items'], VisualPlanItem::count());
         $this->assertSame($counts['plans'], VisualPlan::count());
+    }
+
+    #[Test]
+    public function a_manual_track_does_not_appear_in_the_automated_manifest(): void
+    {
+        $user = User::factory()->create();
+        $project = $this->projectFor($user);
+        $this->scriptVersionFor($project);
+        $plan = $this->planFor($project);
+        $item = $this->itemFor($plan);
+        $asset = $this->verifiedAudio($project);
+
+        $this->trackFor($project, $item, [
+            'source' => TtsTrackSource::Manual,
+            'asset_id' => $asset->id,
+            'duration_seconds' => 5,
+        ]);
+
+        $manifest = $this->service()->build($project, 1);
+        $entry = $this->itemAt($manifest, 0);
+
+        $this->assertFalse($entry['audio']['available']);
+        $this->assertArrayNotHasKey('tts_track_id', $entry['audio']);
+        $this->assertSame(['ITEM_WITHOUT_TRACK'], $this->codes($entry['warnings']));
+        $this->assertSame(['total_items' => 1, 'items_with_audio' => 0, 'items_without_audio' => 1], $manifest['info']);
+    }
+
+    #[Test]
+    public function the_manifest_selects_the_automated_track_over_a_newer_manual_rendition(): void
+    {
+        $user = User::factory()->create();
+        $project = $this->projectFor($user);
+        $this->scriptVersionFor($project);
+        $plan = $this->planFor($project);
+        $item = $this->itemFor($plan);
+
+        $automated = $this->trackFor($project, $item, [
+            'asset_id' => $this->verifiedAudio($project)->id,
+            'duration_seconds' => 5,
+        ]);
+
+        $this->trackFor($project, $item, [
+            'source' => TtsTrackSource::Manual,
+            'asset_id' => $this->verifiedAudio($project)->id,
+            'duration_seconds' => 5,
+        ]);
+
+        $manifest = $this->service()->build($project, 1);
+        $entry = $this->itemAt($manifest, 0);
+
+        $this->assertTrue($entry['audio']['available']);
+        $this->assertSame($automated->id, $entry['audio']['tts_track_id']);
+        $this->assertSame(['total_items' => 1, 'items_with_audio' => 1, 'items_without_audio' => 0], $manifest['info']);
     }
 }
