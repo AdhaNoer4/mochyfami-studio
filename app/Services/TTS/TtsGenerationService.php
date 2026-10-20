@@ -4,6 +4,7 @@ namespace App\Services\TTS;
 
 use App\Enums\AssetMetadataStatus;
 use App\Enums\AssetType;
+use App\Enums\TtsTrackSource;
 use App\Enums\TtsTrackStatus;
 use App\Exceptions\InvalidTtsNarrationException;
 use App\Exceptions\TtsProviderException;
@@ -56,7 +57,11 @@ class TtsGenerationService
     ) {}
 
     /**
-     * List the synthesis history of one plan item, oldest first.
+     * List the automated synthesis history of one plan item, oldest first.
+     *
+     * Manual dubbing tracks share the table but not the story this endpoint
+     * tells, so the listing is explicitly scoped to source = tts; the human
+     * counterpart lives on ManualDubbingService::listManualTracks().
      *
      * @return Collection<int, TtsTrack>
      *
@@ -67,6 +72,7 @@ class TtsGenerationService
         $item = $this->resolveItem($project, $versionNumber, $itemId);
 
         return $item->ttsTracks()
+            ->where('source', TtsTrackSource::Tts)
             // The item's own current narration is what staleness is judged
             // against, and the asset is what a preview URL needs; both are
             // loaded here so the resource never fires a query per row.

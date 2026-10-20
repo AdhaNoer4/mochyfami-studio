@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\ManualDubbingApprovalStatus;
 use App\Enums\TtsTrackSource;
 use App\Enums\TtsTrackStatus;
+use App\Exceptions\InvalidManualApprovalStatusTransitionException;
 use App\Exceptions\InvalidTtsTrackStatusTransitionException;
 use Database\Factories\TtsTrackFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -111,5 +112,32 @@ class TtsTrack extends Model
         }
 
         $this->update(['status' => $target]);
+    }
+
+    /**
+     * Move a manual dubbing track through the approval graph, refusing
+     * anything the graph does not allow.
+     *
+     * This is deliberately separate from transitionTo(): approval is not a
+     * lifecycle state and never touches status. The graph lives on
+     * ManualDubbingApprovalStatus and this is the single spot that enforces
+     * it. Automated TTS tracks have no approval status at all, so a null
+     * approval_status is refused rather than treated as a draft.
+     *
+     * @throws InvalidManualApprovalStatusTransitionException
+     */
+    public function transitionApprovalTo(ManualDubbingApprovalStatus $target): void
+    {
+        $current = $this->approval_status;
+
+        if ($current === null || ! $current->canTransitionTo($target)) {
+            $from = $current?->value ?? 'none';
+
+            throw new InvalidManualApprovalStatusTransitionException(
+                "Cannot transition manual dubbing approval from '{$from}' to '{$target->value}'."
+            );
+        }
+
+        $this->update(['approval_status' => $target]);
     }
 }

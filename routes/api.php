@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\V1\CategoryController;
 use App\Http\Controllers\Api\V1\DashboardController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\IdeaController;
+use App\Http\Controllers\Api\V1\ManualDubbingController;
 use App\Http\Controllers\Api\V1\ProjectController;
 use App\Http\Controllers\Api\V1\ResearchClaimController;
 use App\Http\Controllers\Api\V1\ResearchController;
@@ -160,6 +161,16 @@ Route::prefix('v1')->group(function () {
                 Route::post('items/{item}/tts', [TtsTrackController::class, 'store'])->whereNumber('item');
                 Route::post('items/{item}/tts/{track}/regenerate', [TtsTrackController::class, 'regenerate'])->whereNumber(['item', 'track']);
                 Route::delete('items/{item}/tts/{track}', [TtsTrackController::class, 'destroy'])->whereNumber(['item', 'track']);
+
+                // Manual dubbing is the human counterpart of the TTS routes
+                // above: same nesting, its own history, and its own review
+                // actions. Manual tracks never appear on the /tts routes and
+                // automated tracks are not addressable here.
+                Route::get('items/{item}/manual-dubbing', [ManualDubbingController::class, 'index'])->whereNumber('item');
+                Route::post('items/{item}/manual-dubbing', [ManualDubbingController::class, 'store'])->whereNumber('item');
+                Route::patch('items/{item}/manual-dubbing/{track}/submit', [ManualDubbingController::class, 'submit'])->whereNumber(['item', 'track']);
+                Route::patch('items/{item}/manual-dubbing/{track}/approve', [ManualDubbingController::class, 'approve'])->whereNumber(['item', 'track']);
+                Route::patch('items/{item}/manual-dubbing/{track}/reject', [ManualDubbingController::class, 'reject'])->whereNumber(['item', 'track']);
             });
         });
     });
